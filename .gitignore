@@ -17,7 +17,6 @@ __pycache__/
 venv/
 
 # CTF working files (not part of the skill)
-exp/
 *.pcap
 *.raw
 *.dd
