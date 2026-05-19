@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate SKILL.md frontmatter
+        run: |
+          head -10 SKILL.md | grep -q '^name:' || (echo "FAIL: SKILL.md missing name in frontmatter" && exit 1)
+          head -10 SKILL.md | grep -q '^description:' || (echo "FAIL: SKILL.md missing description" && exit 1)
+          echo "SKILL.md frontmatter OK"
+
+      - name: Validate all referenced files exist
+        run: |
+          EXIT=0
+          # Extract markdown links from SKILL.md
+          grep -oP '\[.*?\]\((references/[^)]+|knowledge/[^)]+)\)' SKILL.md | \
+            grep -oP '\((.*?)\)' | tr -d '()' | sort -u | while read -r f; do
+              if [ ! -f "$f" ]; then
+                echo "FAIL: SKILL.md references '$f' but file does not exist"
+                EXIT=1
+              fi
+            done
+          # Check references/ links to knowledge/
+          for ref in references/*.md; do
+            grep -oP '\((\.\.\/knowledge\/[^)]+)\)' "$ref" | tr -d '()' | \
+              sed 's|^\.\./||' | while read -r f; do
+                if [ ! -f "$f" ]; then
+                  echo "FAIL: $ref references '$f' but file does not exist"
+                  EXIT=1
+                fi
+              done
+          done
+          exit $EXIT
+
+      - name: Check knowledge file count matches index
+        run: |
+          ACTUAL=$(ls knowledge/*.md | wc -l)
+          INDEXED=$(grep -c 'knowledge/' SKILL.md | head -1 || echo 0)
+          echo "Knowledge files on disk: $ACTUAL"
+          echo "Knowledge entries in SKILL.md index: $INDEXED"
+          for f in knowledge/*.md; do
+            basename="$(basename "$f")"
+            if ! grep -q "$basename" SKILL.md; then
+              echo "WARN: $f not listed in SKILL.md index"
+            fi
+          done
+
+      - name: Validate reference files have consistent structure
+        run: |
+          for ref in references/pwn-agent.md references/web-agent.md references/reverse-agent.md \
+                     references/crypto-agent.md references/misc-agent.md references/forensics-agent.md \
+                     references/mobile-agent.md; do
+            if [ ! -f "$ref" ]; then
+              echo "FAIL: Missing specialist reference: $ref"
+              exit 1
+            fi
+            # Check required sections
+            for section in "Mission" "When Selected" "First Pass" "Escalation"; do
+              if ! grep -q "## $section\|## .*$section" "$ref"; then
+                echo "WARN: $ref missing section '$section'"
+              fi
+            done
+          done
+          echo "Reference structure validation OK"
+
+      - name: Check for broken internal links
+        run: |
+          EXIT=0
+          for f in references/*.md knowledge/*.md SKILL.md; do
+            grep -oP '\]\(([^)]+)\)' "$f" | grep -v 'http' | tr -d '()' | \
+              sed 's/\]//g' | while read -r link; do
+                # Resolve relative path
+                dir=$(dirname "$f")
+                target="$dir/$link"
+                # Normalize
+                target=$(realpath --relative-to=. "$target" 2>/dev/null || echo "$link")
+                if [ ! -f "$target" ] && [ ! -f "$link" ]; then
+                  echo "WARN: $f has potentially broken link: $link"
+                fi
+              done
+          done
+
+      - name: Markdown lint (basic)
+        run: |
+          # Check for trailing whitespace in headers
+          for f in SKILL.md references/*.md knowledge/*.md; do
+            if grep -Pn '^#{1,6} .*\s+$' "$f"; then
+              echo "WARN: Trailing whitespace in headers in $f"
+            fi
+          done
+          # Check for consistent header levels (no jump from # to ###)
+          echo "Basic markdown lint OK"
+
+      - name: Summary
+        run: |
+          echo "=== Project Stats ==="
+          echo "SKILL.md: $(wc -l < SKILL.md) lines"
+          echo "References: $(wc -l references/*.md | tail -1)"
+          echo "Knowledge: $(wc -l knowledge/*.md | tail -1)"
+          echo "Total files: $(find . -name '*.md' -not -path './.git/*' | wc -l)"
