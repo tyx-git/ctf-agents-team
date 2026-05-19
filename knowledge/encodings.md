@@ -1,5 +1,8 @@
 # CTF Misc - Encodings & Media
 
+> **适用版本**: Python 3.8+, CyberChef, zbarimg, PIL/Pillow
+> **最后更新**: 2026-05-19
+
 ## Table of Contents
 - [Common Encodings](#common-encodings)
   - [Base64](#base64)

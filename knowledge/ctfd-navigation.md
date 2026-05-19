@@ -1,5 +1,8 @@
 # CTFd Platform Navigation (No Browser)
 
+> **适用版本**: CTFd 3.x, Python requests/httpx
+> **最后更新**: 2026-05-19
+
 Programmatic interaction with CTFd-based CTF platforms via REST API. Eliminates browser dependency during competitions.
 
 ## Table of Contents

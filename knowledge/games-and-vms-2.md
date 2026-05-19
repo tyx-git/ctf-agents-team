@@ -1,5 +1,8 @@
 # CTF Misc - Games, VMs & Constraint Solving (Part 2)
 
+> **适用版本**: Python 3.8+
+> **最后更新**: 2026-05-19
+
 ## Table of Contents
 - [Cookie Checkpoint Game Brute-Forcing (BYPASS CTF 2025)](#cookie-checkpoint-game-brute-forcing-bypass-ctf-2025)
 - [Flask Session Cookie Game State Leakage (BYPASS CTF 2025)](#flask-session-cookie-game-state-leakage-bypass-ctf-2025)

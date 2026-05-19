@@ -1,5 +1,8 @@
 # CTF Misc - Games, VMs & Constraint Solving (Part 3)
 
+> **适用版本**: Python 3.8+, Docker
+> **最后更新**: 2026-05-19
+
 ## Table of Contents
 - [memfd_create Packed Binaries](#memfd_create-packed-binaries)
 - [Multi-Phase Interactive Crypto Game (EHAX 2026)](#multi-phase-interactive-crypto-game-ehax-2026)

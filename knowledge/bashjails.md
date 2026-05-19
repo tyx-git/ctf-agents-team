@@ -1,5 +1,8 @@
 # CTF Misc - Bash Jails & Restricted Shells
 
+> **适用版本**: Bash 4.x/5.x, sh, dash
+> **最后更新**: 2026-05-19
+
 ## Table of Contents
 - [Identifying the Jail](#identifying-the-jail)
 - [Eval Context Detection](#eval-context-detection)

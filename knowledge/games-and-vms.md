@@ -1,5 +1,8 @@
 # CTF Misc - Games, VMs & Constraint Solving (Part 1)
 
+> **适用版本**: Python 3.8+, z3-solver, WASM tools
+> **最后更新**: 2026-05-19
+
 ## Table of Contents
 - [WASM Game Exploitation via Patching](#wasm-game-exploitation-via-patching)
 - [Roblox Place File Reversing](#roblox-place-file-reversing)

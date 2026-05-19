@@ -1,5 +1,8 @@
 # CTF Misc - Advanced Encodings & Specialized Formats
 
+> **适用版本**: Python 3.8+, Verilog tools, RTF parsers
+> **最后更新**: 2026-05-19
+
 ## Table of Contents
 - [Verilog/HDL](#veriloghdl)
 - [Gray Code Cyclic Encoding (EHAX 2026)](#gray-code-cyclic-encoding-ehax-2026)

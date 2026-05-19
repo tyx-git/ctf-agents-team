@@ -107,3 +107,49 @@ jobs:
           echo "References: $(wc -l references/*.md | tail -1)"
           echo "Knowledge: $(wc -l knowledge/*.md | tail -1)"
           echo "Total files: $(find . -name '*.md' -not -path './.git/*' | wc -l)"
+          echo "Exp entries: $(cat exp/*/*.jsonl 2>/dev/null | wc -l)"
+          echo "Solver scripts: $(ls scripts/solvers/*.py 2>/dev/null | wc -l)"
+
+      - name: Validate exp/ JSONL format
+        run: |
+          EXIT=0
+          for f in exp/*/*.jsonl; do
+            if [ ! -f "$f" ]; then continue; fi
+            LINE=0
+            while IFS= read -r line; do
+              LINE=$((LINE+1))
+              if ! echo "$line" | python3 -c "import sys,json; json.loads(sys.stdin.read())" 2>/dev/null; then
+                echo "FAIL: $f line $LINE is not valid JSON"
+                EXIT=1
+              fi
+            done < "$f"
+            # Check required fields
+            python3 -c "
+import json, sys
+with open('$f') as fh:
+    for i, line in enumerate(fh, 1):
+        obj = json.loads(line)
+        for field in ['challenge', 'category', 'technique', 'key_insight']:
+            if field not in obj:
+                print(f'FAIL: $f line {i} missing required field: {field}')
+                sys.exit(1)
+print(f'$f: {i} entries OK')
+" || EXIT=1
+          done
+          exit $EXIT
+
+      - name: Validate knowledge metadata headers
+        run: |
+          for f in knowledge/*.md; do
+            if ! head -5 "$f" | grep -q '最后更新'; then
+              echo "WARN: $f missing '最后更新' metadata header"
+            fi
+          done
+          echo "Knowledge metadata check done"
+
+      - name: Validate solver scripts syntax
+        if: hashFiles('scripts/solvers/*.py') != ''
+        run: |
+          for f in scripts/solvers/*.py; do
+            python3 -m py_compile "$f" && echo "$f: syntax OK" || (echo "FAIL: $f has syntax errors" && exit 1)
+          done

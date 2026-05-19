@@ -1,5 +1,8 @@
 # CTF Misc - Python Jails
 
+> **适用版本**: Python 2.7, 3.6-3.12
+> **最后更新**: 2026-05-19
+
 ## Table of Contents
 - [Identifying Jail Type](#identifying-jail-type)
 - [Systematic Enumeration](#systematic-enumeration)

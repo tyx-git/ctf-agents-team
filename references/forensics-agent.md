@@ -275,6 +275,122 @@ stat file.txt
 
 ---
 
+## Windows 取证
+
+### Volatility3 Windows 插件速查
+
+```bash
+# 进程列表
+vol3 -f memory.dmp windows.pslist
+vol3 -f memory.dmp windows.pstree      # 进程树
+
+# 文件搜索与提取
+vol3 -f memory.dmp windows.filescan | grep -i "flag\|secret\|password"
+vol3 -f memory.dmp windows.dumpfiles --virtaddr 0xADDRESS
+
+# 注册表
+vol3 -f memory.dmp windows.registry.hivelist
+vol3 -f memory.dmp windows.registry.printkey --key "SAM\Domains\Account\Users"
+
+# 密码/Hash
+vol3 -f memory.dmp windows.hashdump     # SAM hashes (NTLM)
+vol3 -f memory.dmp windows.lsadump      # LSA secrets
+vol3 -f memory.dmp windows.cachedump    # Domain cached credentials
+
+# 网络连接
+vol3 -f memory.dmp windows.netscan
+
+# 命令行历史
+vol3 -f memory.dmp windows.cmdline
+
+# DLL 列表
+vol3 -f memory.dmp windows.dlllist --pid PID
+
+# Malfind (注入代码检测)
+vol3 -f memory.dmp windows.malfind
+```
+
+### Windows 关键取证 Artifact
+
+| Artifact | 路径 | 用途 |
+|----------|------|------|
+| Prefetch | C:\Windows\Prefetch\*.pf | 程序执行历史 (名称+时间+执行次数) |
+| Amcache | C:\Windows\AppCompat\Programs\Amcache.hve | 程序安装/执行记录 (含 SHA1) |
+| SAM | C:\Windows\System32\config\SAM | 本地用户密码 hash |
+| SYSTEM | C:\Windows\System32\config\SYSTEM | 系统配置 (含 SAM 解密所需 bootkey) |
+| NTUSER.DAT | C:\Users\*\NTUSER.DAT | 用户注册表 hive (最近文件/运行历史) |
+| SECURITY | C:\Windows\System32\config\SECURITY | LSA secrets/域缓存凭据 |
+| ShimCache | SYSTEM hive | AppCompatCache — 程序兼容性记录 |
+| UserAssist | NTUSER.DAT | GUI 程序执行计数 (ROT13 编码的路径) |
+
+```bash
+# SAM hash 离线提取 (需要 SAM + SYSTEM hive)
+secretsdump.py -sam SAM -system SYSTEM LOCAL
+# 或
+samdump2 SYSTEM SAM
+
+# Prefetch 分析
+python3 -c "
+# pip install prefetch-parser
+from prefetch import Prefetch
+pf = Prefetch('NOTEPAD.EXE-XXXXXXXX.pf')
+print(f'Name: {pf.executableName}')
+print(f'Run count: {pf.runCount}')
+print(f'Last run: {pf.lastRunTime}')
+for f in pf.filesAccessed:
+    print(f'  {f}')
+"
+```
+
+### Event Log 分析
+
+```bash
+# .evtx 文件分析
+pip3 install python-evtx
+
+python3 -c "
+import Evtx.Evtx as evtx
+import json
+
+with evtx.Evtx('Security.evtx') as log:
+    for record in log.records():
+        xml = record.xml()
+        # 搜索关键 Event ID
+        for eid in ['4624', '4625', '4688', '4720', '7045']:
+            if f'<EventID>{eid}</EventID>' in xml:
+                print(f'[EID {eid}] {xml[:200]}')
+                break
+"
+
+# 关键 Event ID:
+# 4624 — 成功登录 (看 LogonType: 2=交互, 3=网络, 10=RDP)
+# 4625 — 登录失败 (暴力破解检测)
+# 4688 — 进程创建 (追踪命令执行)
+# 4720 — 新用户创建
+# 7045 — 服务安装 (持久化/后门)
+# 1102 — 审计日志被清除 (反取证)
+```
+
+### 浏览器取证
+
+```bash
+# Chrome 历史 (SQLite)
+# 路径: %APPDATA%/Local/Google/Chrome/User Data/Default/
+sqlite3 History "SELECT url, title, visit_count, datetime(last_visit_time/1000000-11644473600,'unixepoch') FROM urls ORDER BY last_visit_time DESC LIMIT 20;"
+
+# Chrome 登录凭据 (需 DPAPI 密钥解密)
+sqlite3 "Login Data" "SELECT origin_url, username_value FROM logins;"
+
+# Firefox 历史
+# 路径: %APPDATA%/Roaming/Mozilla/Firefox/Profiles/*.default/
+sqlite3 places.sqlite "SELECT url, title, visit_count FROM moz_places ORDER BY last_visit_date DESC LIMIT 20;"
+
+# Firefox 密码 (需 key4.db 解密)
+# 工具: firefox_decrypt.py
+```
+
+---
+
 ## Escalation
 
 需要 `misc-agent` 当：

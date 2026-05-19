@@ -1,6 +1,7 @@
 # CTF Misc - RF / SDR / IQ Signal Processing
 
 > **适用版本**: GNU Radio 3.10+, Python 3.8+, numpy/scipy
+> **最后更新**: 2026-05-19
 
 Techniques for Software-Defined Radio (SDR) signal processing using In-phase/Quadrature (IQ) data.
 

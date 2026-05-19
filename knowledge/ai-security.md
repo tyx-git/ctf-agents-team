@@ -1,6 +1,7 @@
 # CTF Misc - AI / ML Security
 
 > **适用版本**: Python 3.8+, PyTorch 1.x/2.x, TensorFlow 2.x, scikit-learn, numpy
+> **最后更新**: 2026-05-19
 
 ---
 

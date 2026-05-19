@@ -250,6 +250,21 @@ f = x^e - c
 f.small_roots(X=2^256, beta=0.5)
 ```
 
+### Lattice / 格密码
+
+**识别信号**: "已知部分信息"、"截断输出"、"nonce 泄露"、"背包/子集和"
+
+| 场景 | 技术 | 核心方法 |
+|------|------|---------|
+| RSA 已知明文/密钥高位 | Coppersmith | `f.small_roots(X=bound, beta=0.5)` |
+| ECDSA/DSA nonce 泄露 | HNP → LLL | 构造 HNP 格矩阵 |
+| 背包加密 | 低密度子集和 | `[I\|w].LLL()` 找 0/1 向量 |
+| 截断 PRNG | CVP | Kannan embedding + LLL |
+| RSA d < N^0.292 | Boneh-Durfee | 多元 Coppersmith |
+| NTRU | 循环矩阵格 | `[I H; 0 qI].LLL()` |
+
+详见 [knowledge/lattice-crypto.md](../knowledge/lattice-crypto.md)。
+
 ---
 
 ## CyberChef

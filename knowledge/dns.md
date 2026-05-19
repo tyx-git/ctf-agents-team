@@ -1,5 +1,8 @@
 # CTF Misc - DNS Exploitation Techniques
 
+> **适用版本**: dig/nslookup, Python dnspython, tshark
+> **最后更新**: 2026-05-19
+
 ## Table of Contents
 - [EDNS Client Subnet (ECS) Spoofing](#edns-client-subnet-ecs-spoofing)
 - [DNSSEC NSEC Walking](#dnssec-nsec-walking)

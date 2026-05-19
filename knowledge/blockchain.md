@@ -1,6 +1,7 @@
 # CTF Misc - Blockchain / Smart Contract Security
 
 > **适用版本**: Solidity 0.8.x, Foundry (forge/cast/anvil), Hardhat, Python web3.py 6.x+
+> **最后更新**: 2026-05-19
 
 ---
 

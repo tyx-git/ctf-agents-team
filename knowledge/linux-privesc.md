@@ -1,5 +1,8 @@
 # Linux Privilege Escalation and Service Exploitation
 
+> **适用版本**: Linux kernel 4.x-6.x, sudo, systemd, PostgreSQL, NFS
+> **最后更新**: 2026-05-19
+
 Techniques from HackTheBox machine writeups covering sudo abuse, service misconfigurations, database exploitation, and credential extraction.
 
 ## Table of Contents

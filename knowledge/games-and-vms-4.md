@@ -1,5 +1,8 @@
 # CTF Misc - Games, VMs & Constraint Solving (Part 4)
 
+> **适用版本**: Python 3.8+, Selenium, XSLT processors
+> **最后更新**: 2026-05-19
+
 Additional CTF-era challenges extracted from 2018+ writeups. For earlier parts, see [games-and-vms.md](games-and-vms.md), [games-and-vms-2.md](games-and-vms-2.md), and [games-and-vms-3.md](games-and-vms-3.md).
 
 ## Table of Contents
