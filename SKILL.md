@@ -421,21 +421,46 @@ strings output.bin | grep -iE '\{.*\}'
 
 ## 7. 经验库复用
 
-`exp/` 目录按分类存储已做题目的解题经验：
+`exp/` 目录按分类存储已做题目的解题经验，每个子目录含 JSONL 经验文件、README 速查、以及该类型的参考 exploit 脚本：
 
 ```
-exp/misc/misc.jsonl    — 杂项/隐写
-exp/pwn/pwn.jsonl      — 二进制利用
-exp/reverse/reverse.jsonl — 逆向/Mobile
-exp/web/web.jsonl      — Web 安全
+exp/
+├── README.md              ← 字段定义与写法规范
+├── web/
+│   ├── web.jsonl          ← Web 经验
+│   ├── README.md          ← Web 速查
+│   └── audit_*.py         ← 参考 exploit
+├── pwn/
+│   ├── pwn.jsonl          ← Pwn 经验
+│   ├── README.md          ← Pwn 速查
+│   ├── pwn*_solve.py      ← 参考 exploit
+│   └── libc_candidates.json
+├── reverse/
+│   ├── reverse.jsonl      ← 逆向/Mobile 经验
+│   └── README.md
+├── misc/misc.jsonl        ← 杂项/隐写
+├── crypto/crypto.jsonl    ← 密码学
+└── forensics/forensics.jsonl ← 取证
 ```
 
 **使用时机**：Phase 2 侦察后、Phase 4 解题卡住时
 **更新时机**：Phase 6 WP 完成后，将新经验追加到对应 `.jsonl`
 
-**JSONL 格式** (每行一条 JSON)：
+**JSONL 字段** (每行一条 JSON)：
+- `challenge`: 题目编号
+- `name`: 题目名
+- `technique`: 主利用链
+- `status`: `solved` 或 `partial`
+- `experience`: 可复用经验列表（数组），每条只表达一个结论
+- `artifacts`: (可选) flag、偏移量等具体值
+
+**写法原则**：
+- 优先写"场景 → 动作 → 坑点 → 验证"，少写流水账
+- 正向经验（什么路线打通了）和试错经验（什么路线走不通、为什么）都要记录
+- 只保留已验证的信息，推测内容放到 `partial` 条目
+
 ```json
-{"challenge":"题目名称","competition":"比赛名","category":"web","technique":"SSTI+Jinja2","key_insight":"用 config.__class__ 链获取 os.popen","flag_pattern":"flag{...}","date":"2026-05-19"}
+{"challenge":"PWN3","name":"Format String GOT Overwrite","technique":"格式化字符串泄露 GOT + 字节覆写 + ret2libc","status":"solved","experience":["i386 下参数都在栈上，格式化字符串利用比 x64 更直接。","%hhn 适合逐字节写，先写低位再补高位。","send() 和 sendline() 的区别必须严格控制，格式串题里多一个换行就可能导致 payload 失效。"]}
 ```
 
 ---

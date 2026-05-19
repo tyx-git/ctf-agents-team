@@ -110,33 +110,119 @@ jobs:
           echo "Exp entries: $(cat exp/*/*.jsonl 2>/dev/null | wc -l)"
           echo "Solver scripts: $(ls scripts/solvers/*.py 2>/dev/null | wc -l)"
 
-      - name: Validate exp/ JSONL format
+      - name: Validate exp/ JSONL strict schema
         run: |
-          EXIT=0
-          for f in exp/*/*.jsonl; do
-            if [ ! -f "$f" ]; then continue; fi
-            LINE=0
-            while IFS= read -r line; do
-              LINE=$((LINE+1))
-              if ! echo "$line" | python3 -c "import sys,json; json.loads(sys.stdin.read())" 2>/dev/null; then
-                echo "FAIL: $f line $LINE is not valid JSON"
-                EXIT=1
-              fi
-            done < "$f"
-            # Check required fields
-            python3 -c "
-import json, sys
-with open('$f') as fh:
-    for i, line in enumerate(fh, 1):
-        obj = json.loads(line)
-        for field in ['challenge', 'category', 'technique', 'key_insight']:
-            if field not in obj:
-                print(f'FAIL: $f line {i} missing required field: {field}')
-                sys.exit(1)
-print(f'$f: {i} entries OK')
-" || EXIT=1
-          done
-          exit $EXIT
+          python3 << 'PYEOF'
+          import json, re, sys, glob
+
+          ALLOWED_KEYS = {'challenge', 'name', 'technique', 'status', 'experience', 'artifacts'}
+          ALLOWED_CHALLENGES = {'Web', 'PWN', 'RE', 'MOBILE', 'MISC', 'Crypto', 'Forensics'}
+          FLAG_RE = re.compile(r'(ISCC|flag|FLAG|CTF|ENO|HTB|pico)\{')
+          IP_RE = re.compile(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?')
+          URL_RE = re.compile(r'https?://')
+          errors = 0
+
+          for path in sorted(glob.glob('exp/*/*.jsonl')):
+              with open(path, encoding='utf-8') as fh:
+                  lines = fh.readlines()
+              if not lines or all(l.strip() == '' for l in lines):
+                  print(f'{path}: empty (placeholder)')
+                  continue
+              for i, line in enumerate(lines, 1):
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      obj = json.loads(line)
+                  except json.JSONDecodeError as e:
+                      print(f'FAIL {path}:{i} invalid JSON: {e}')
+                      errors += 1; continue
+
+                  tag = f'{path}:{i}'
+
+                  # -- no extra keys --
+                  extra = set(obj.keys()) - ALLOWED_KEYS
+                  if extra:
+                      print(f'FAIL {tag} forbidden keys: {extra}')
+                      errors += 1
+
+                  # -- required fields --
+                  for f in ('challenge', 'name', 'technique', 'status', 'experience'):
+                      if f not in obj:
+                          print(f'FAIL {tag} missing field: {f}')
+                          errors += 1
+
+                  # -- challenge enum --
+                  ch = obj.get('challenge', '')
+                  if ch not in ALLOWED_CHALLENGES:
+                      print(f'FAIL {tag} challenge {ch!r} must be one of {ALLOWED_CHALLENGES}')
+                      errors += 1
+
+                  # -- name length --
+                  name = obj.get('name', '')
+                  if len(name) < 1 or len(name) > 60:
+                      print(f'FAIL {tag} name length {len(name)} not in [1,60]')
+                      errors += 1
+
+                  # -- technique length --
+                  tech = obj.get('technique', '')
+                  if len(tech) < 1 or len(tech) > 120:
+                      print(f'FAIL {tag} technique length {len(tech)} not in [1,120]')
+                      errors += 1
+
+                  # -- status enum --
+                  if obj.get('status') not in ('solved', 'partial'):
+                      print(f'FAIL {tag} status must be "solved" or "partial"')
+                      errors += 1
+
+                  # -- experience array --
+                  exp = obj.get('experience', [])
+                  if not isinstance(exp, list):
+                      print(f'FAIL {tag} experience must be array')
+                      errors += 1; exp = []
+                  if len(exp) < 3 or len(exp) > 8:
+                      print(f'FAIL {tag} experience count {len(exp)} not in [3,8]')
+                      errors += 1
+                  for j, e in enumerate(exp):
+                      if not isinstance(e, str):
+                          print(f'FAIL {tag} experience[{j}] not string')
+                          errors += 1; continue
+                      if len(e) < 15 or len(e) > 150:
+                          print(f'FAIL {tag} experience[{j}] length {len(e)} not in [15,150]')
+                          errors += 1
+
+                  # -- artifacts types --
+                  arts = obj.get('artifacts', {})
+                  if arts:
+                      if not isinstance(arts, dict):
+                          print(f'FAIL {tag} artifacts must be object')
+                          errors += 1
+                      else:
+                          for k, v in arts.items():
+                              if not isinstance(v, (str, int, float)):
+                                  print(f'FAIL {tag} artifacts.{k} must be string or number')
+                                  errors += 1
+
+                  # -- forbidden content scan (all string values) --
+                  blob = json.dumps(obj, ensure_ascii=False)
+                  if FLAG_RE.search(blob):
+                      print(f'FAIL {tag} contains flag pattern')
+                      errors += 1
+                  if IP_RE.search(blob):
+                      print(f'FAIL {tag} contains IP address')
+                      errors += 1
+                  if URL_RE.search(blob):
+                      print(f'FAIL {tag} contains URL')
+                      errors += 1
+
+              print(f'{path}: {i} entries checked')
+
+          if errors:
+              print(f'\n{errors} error(s) found')
+              sys.exit(1)
+          else:
+              print('\nAll entries valid')
+          PYEOF
 
       - name: Validate knowledge metadata headers
         run: |
