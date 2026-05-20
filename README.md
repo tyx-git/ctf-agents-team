@@ -31,27 +31,49 @@ git clone https://github.com/YOUR_USERNAME/ctf-agents-team ~/.claude/skills/ctf-
 
 ## Usage
 
-In Claude Code, invoke with the slash command:
+In Claude Code, invoke with the slash command. Two primary modes are supported:
+
+### Solo Mode — Solve all challenges in parallel
 
 ```
-# Start a new competition
-/ctf-agents-team ISCC
+/ctf-agents-team BugKu
+/ctf-agents-team BugKu/          # trailing slash OK
+```
 
-# Jump to a specific challenge
-/ctf-agents-team ISCC/Web/Oracle's Whisper
+Scans the competition directory, discovers all challenges grouped by category (Web, Pwn, Re, Misc, ...), then launches one agent per category in parallel. Each category agent works through its challenges sequentially. Ideal for competitions where you want maximum throughput.
 
-# New challenge with description
+### Single-Challenge Mode — Focus on one challenge
+
+```
+/ctf-agents-team BugKu/Web/one things
+```
+
+Jumps directly into a specific challenge and runs the full solve pipeline (triage → environment check → solve → verify → writeup).
+
+### Other invocations
+
+```
+# New challenge from description
 /ctf-agents-team ISCC 新题 Web 叫 A bridge so far，地址 http://x.x.x.x:8080
+
+# Resume previous session (no arguments)
+/ctf-agents-team
 ```
 
 ### What happens
 
+**Single-Challenge Mode:**
+1. **Challenge Triage** — Identifies file types, searches experience library, classifies into one of 7 categories
+2. **Environment Check** — Verifies required tools are available, installs missing pip packages
+3. **Solve** — Loads the relevant specialist reference, applies techniques, tracks progress in `wp.process`
+4. **Verification** — Confirms flag with confidence levels (guess → evidence → verified)
+5. **Writeup** — Generates detailed `wp：题目名称.md` with reproducible steps + complete exploit code
+
+**Solo Mode:**
 1. **Competition Intake** — Scans the competition directory, creates `task_plan.md`, `findings.md`, `progress.md`
-2. **Challenge Triage** — Identifies file types, searches experience library, classifies into one of 7 categories
-3. **Environment Check** — Verifies required tools are available, installs missing pip packages
-4. **Solve** — Loads the relevant specialist reference, applies techniques, tracks progress in `wp.process`
-5. **Verification** — Confirms flag with confidence levels (guess → evidence → verified)
-6. **Writeup** — Generates detailed `wp：题目名称.md` with reproducible steps + complete exploit code
+2. **Solo Dispatch** — Groups challenges by category, prioritizes, launches parallel agents
+3. **Parallel Solve** — Each category agent runs the full triage→solve→writeup pipeline per challenge
+4. **Collection** — Lead agent collects all flags into `flag.txt`, updates progress
 
 ### Directory structure created
 

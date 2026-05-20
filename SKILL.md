@@ -84,6 +84,66 @@ find $COMPETITION_DIR -mindepth 2 -maxdepth 2 -type d | sort
 - 通过 API 获取题目列表、附件、提交 flag
 - 详见 [knowledge/ctfd-navigation.md](knowledge/ctfd-navigation.md)
 
+**模式分流**：Phase 1 完成后，根据运行模式分流：
+- **Solo 模式** → 进入 Phase 1.5 (Solo Dispatch)，自动并行解题
+- **单题模式 / 描述模式** → 进入 Phase 2，对指定题目开始侦察
+- **Session Recovery** → Phase 0 已处理，不经过 Phase 1
+
+### Phase 1.5: Solo 模式调度 (Solo Dispatch)
+
+**仅在 Solo 模式下执行。** Phase 1 扫描完成后，自动启动并行解题。
+
+**Step 1 — 题目发现与分组**：
+
+```bash
+# 扫描所有品类目录下的题目
+for category in Web Pwn Re Reverse Mobile Misc Crypto Forensics; do
+  ls -d $COMPETITION_DIR/$category/*/ 2>/dev/null
+done
+```
+
+将发现的题目按品类分组。品类目录名大小写兼容（`Web` = `web` = `WEB`），统一映射到标准名。
+
+**Step 2 — 优先级排序**：
+
+在 task_plan.md 中按以下规则对品类内题目排序：
+1. 经验库命中（`exp/` 中有类似题记录）→ 优先
+2. 附件完整度（有附件 > 仅有描述 > 仅有 URL）→ 优先
+3. 题目目录大小（小文件通常更简单）→ 优先
+
+**Step 3 — 按品类并行 dispatch**：
+
+对每个非空品类启动一个 Agent，使用 Claude Code 的 Agent tool 并行调度：
+
+```
+Agent 分配示意：
+├── Agent (web):       Web/题目A → Web/题目B → Web/题目C
+├── Agent (pwn):       Pwn/题目X → Pwn/题目Y
+├── Agent (misc):      Misc/题目M → Misc/题目N → Misc/题目O
+└── Agent (reverse):   Re/题目R → Re/题目S
+    （空品类不启动 Agent）
+```
+
+**品类 Agent 的职责**：
+- 获得该品类下所有题目的完整解题自主权（Phase 2→6）
+- 按优先级顺序逐题作答（品类内串行）
+- 每道题独立创建 `wp.process` 和 `wp：题目名称.md`
+- 发现 flag 后写入该题目录下的 `flag.found` 文件（格式：`flag{...}`）
+- 解完一题后追加经验到 `exp/` 对应 `.jsonl`
+- 遵守时间管理规则：简单题 ≤30min, 中等题 ≤60min, 困难题 ≤90min
+- 遵守 3-Strike Protocol：同一题卡住 3 次后标记 `abandoned`，继续下一题
+
+**品类 Agent Prompt 模板**见 [orchestrator-playbook.md](references/orchestrator-playbook.md) §Solo 品类 Agent Prompt。
+
+**Step 4 — Lead Agent 监控与汇总**：
+
+所有品类 Agent 返回后，Lead Agent 执行：
+1. 扫描所有题目目录下的 `flag.found` 文件
+2. 汇总到比赛根目录 `flag.txt`（格式：`[类型][题目名称]flag字符串`）
+3. 更新 `task_plan.md`：标记每道题的最终状态
+4. 更新 `progress.md`：记录 Solo 模式整体时间线
+5. 输出解题摘要：已解/未解/abandoned 各多少题
+
 ### Phase 2: 题目侦察与分类 (Challenge Triage)
 
 进入具体题目目录后：
@@ -503,15 +563,45 @@ exp/
 
 ## $ARGUMENTS
 
-参数格式：`[比赛名称] [题目路径或描述]`
+参数格式：`[比赛名称/分类/题目]` 或 `[比赛名称]` 或 `[比赛名称 题目描述]`
 
-**解析规则**：
-1. 如果只有比赛名称 → Phase 1 (比赛入场)
-2. 如果包含题目路径 → 直接进入该题目的 Phase 2 (侦察分类)
-3. 如果包含题目描述/URL → 创建题目目录后进入 Phase 2
-4. 无参数 → Phase 0 (会话恢复)
+### 路径规范化
 
-**示例**：
-- `ISCC` → 扫描 ISCC/ 目录，建立全局视图
-- `ISCC/Web/Oracle's Whisper` → 进入该题解题
-- `ISCC 新题 Web 题目叫 A bridge so far，地址 http://x.x.x.x:8080` → 创建目录并开始
+解析前先执行：
+1. 去除尾部 `/`：`BugKu/` → `BugKu`
+2. 按 `/` 分割，过滤空段
+3. 统计有效路径段数
+
+### 模式判定
+
+```
+路径段数  额外文本  目录存在  →  模式
+────────  ────────  ────────  ──  ──────────────
+0         无        —         →  Session Recovery (Phase 0)
+1         无        是        →  Solo 模式 — Phase 1 → 自动 dispatch 全部题目
+1         有描述/URL —       →  描述模式 — 创建题目目录 → Phase 2
+≥2        —         —         →  单题模式 — 直接进入 Phase 2
+```
+
+**Solo vs 描述模式的区分**：第一个参数后是否有额外文本。
+- `BugKu` → 只有 1 段、无额外文本 → Solo 模式
+- `BugKu 新题 Web 叫 xxx` → 1 段 + 有描述文本 → 描述模式
+
+### 模式行为
+
+| 模式 | 触发 | 行为 |
+|------|------|------|
+| **Session Recovery** | 无参数 | Phase 0：扫描未完成的 wp.process，恢复上次进度 |
+| **Solo 模式** | `BugKu` | Phase 1 入场 → 扫描所有品类题目 → 按品类并行 dispatch Agent → 逐题作答 |
+| **单题模式** | `BugKu/Web/one things` | 直接进入 Phase 2 侦察该题 → Phase 3→6 完整解题 |
+| **描述模式** | `ISCC 新题 Web 叫 xxx` | 创建题目目录 → Phase 2 |
+
+### 示例
+
+```
+/ctf-agents-team BugKu/Web/one things    → 单题模式：解 BugKu/Web/one things
+/ctf-agents-team BugKu                    → Solo 模式：扫描 BugKu/ 下所有题，并行解题
+/ctf-agents-team BugKu/                   → Solo 模式（等同 BugKu）
+/ctf-agents-team ISCC 新题 Web 叫 xxx     → 描述模式：创建目录并开始
+/ctf-agents-team                          → Session Recovery：恢复上次进度
+```
