@@ -163,9 +163,9 @@ exp/
 └── forensics/forensics.jsonl
 ```
 
-Each line is a JSON record:
+Each line is a JSON record (schema defined in [exp/README.md](exp/README.md)):
 ```json
-{"challenge":"题目名","competition":"ISCC","category":"web","technique":"SSTI+Jinja2","key_insight":"config.__class__ chain","date":"2026-05-19"}
+{"challenge":"Web","name":"SSTI Bypass","technique":"Jinja2 SSTI + config.__class__ chain","status":"solved","experience":["SSTI 检测先用 {{7*7}} 确认模板引擎类型","Jinja2 用 __class__.__mro__[1].__subclasses__() 遍历可用类","WAF 过滤双花括号时尝试 {% print %} 替代"]}
 ```
 
 The skill searches this library during reconnaissance and appends new entries after solving.
