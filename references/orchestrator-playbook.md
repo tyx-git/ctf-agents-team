@@ -23,7 +23,7 @@ Lead Agent（主对话）拥有：
 |---------|---------|-------------------|-------------------|
 | ELF/PE + remote service + crash/leak | pwn-agent | 函数恢复、去混淆阻塞 exploit → reverse | linux-privesc |
 | APK/IPA/smali/JNI | mobile-agent | native so 逻辑主导 → reverse | — |
-| image/audio/archive/PCAP/encoding | misc-agent | 出现 native 逻辑或 web 层 | pyjails, bashjails, encodings, games-and-vms, rf-sdr, dns |
+| image/audio/archive/PCAP 提取物/编码 | misc-agent | 出现 native 逻辑或 web 层 | pyjails, bashjails, encodings, games-and-vms, rf-sdr, dns |
 | smart contract/.sol/EVM/Solidity | misc-agent | 需要 crypto 分析 → crypto | blockchain |
 | ML model/.pt/.pkl/adversarial/LLM | misc-agent | 含 pickle RCE → forensics 视角 | ai-security |
 | URL/source audit/auth/injection/SSTI | web-agent | PCAP/blob 提取主导 → misc | — |
@@ -287,13 +287,14 @@ TIMESTAMP: 2026-05-21T14:30:00Z
   ...
 
 ## 你可以加载的技术参考
-- 读取 [对应 specialist reference 路径] 获取技术速查
-- 按需读取 knowledge/ 下的深度文档（参见 orchestrator-playbook.md 知识加载指南）
+- 读取 `.skills/ctf-agents-team/references/[品类]-agent.md` 获取技术速查（如 `.skills/ctf-agents-team/references/pwn-agent.md`）
+- 按需读取 `.skills/ctf-agents-team/knowledge/` 下的深度文档（参见 orchestrator-playbook.md 知识加载指南）
 
 ## 经验库
-- 读取 exp/[品类]/[品类].jsonl 查看历史经验
-- 解完每道题后，若有可复用经验则追加新经验到该文件（纯模板题/签到题跳过）
-- 经验库路径是 `.skills/ctf-agents-team/exp/`，不是比赛目录
+- 读取 `.skills/ctf-agents-team/exp/[品类]/[品类].jsonl` 查看历史经验（如 `.skills/ctf-agents-team/exp/pwn/pwn.jsonl`）
+  - **Mobile Agent 注意**：Mobile 经验存储在 `.skills/ctf-agents-team/exp/re/re.jsonl`（通过 `challenge: "Mobile"` 字段区分），请读取该文件并在搜索时用 `grep '"challenge": "Mobile"'` 过滤 Mobile 相关条目。
+- 解完每道题后，若有可复用经验则写入题目目录下 `exp_candidate.jsonl`（纯模板题/签到题跳过）
+- **注意**：经验库路径是 `.skills/ctf-agents-team/exp/`，不是比赛目录；写入经验候选到题目目录，由 Lead Agent 最终合并
 
 ## 每道题的工作流程
 对每道题依次执行：
@@ -420,7 +421,7 @@ Lead Agent 在 Phase 1.5 中的具体操作：
 |------|----------|---------|
 | Flag 明文 | `strings * \| grep -iE 'flag\|ctf'` | Misc/Forensics |
 | Base64 | 识别 Base64 字符串 → 直接解码 | Misc 编码题 |
-| 经验库命中 | `grep -ri "关键词" exp/[品类]/[品类].jsonl` | 历史相似题 |
+| 经验库命中 | `grep -ri "关键词" .skills/ctf-agents-team/exp/web/web.jsonl ...` (6 库全部) | 历史相似题 |
 
 ### Web
 

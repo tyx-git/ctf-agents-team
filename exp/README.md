@@ -8,7 +8,7 @@
 
 ```jsonc
 {
-  "challenge": "PWN",             // 必填 · 题目分类 · 枚举值见下表
+  "challenge": "Pwn",             // 必填 · 题目分类 · 枚举值见下表
   "name":      "Format String",   // 必填 · 题目原名 · ≤60 字符
   "technique": "A + B + C",       // 必填 · 主利用链 · 用 " + " 连接 · ≤120 字符
   "status":    "solved",          // 必填 · 只能是 "solved" 或 "partial"

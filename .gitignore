@@ -24,10 +24,9 @@ venv/
 core
 *.dmp
 
-# Competition directories (created at runtime)
-ISCC/
-DASCTF/
-HGAME/
+# Sensitive files — never commit (global patterns protect all competition directories)
+flag.found
+flag.log
 findings.md
 progress.md
 task_plan.md

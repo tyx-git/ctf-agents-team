@@ -5,7 +5,7 @@
 
 ## When Selected
 - image/audio/video/archive
-- PCAP/日志/混合传输
+- 多步解码/文件变换/日志（不含原始 PCAP 分析）
 - text/numeric 编码
 - jail/sandbox/VM/game
 - 多步解码链

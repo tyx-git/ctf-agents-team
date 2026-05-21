@@ -254,7 +254,8 @@ if __name__ == '__main__':
 ```
 
 **规则**：
-- 同一 `[类型][题目名称]` 已存在时更新该行，不追加重复
+- 同一 `[类型][题目名称]` 已存在时**不覆盖**（已验证的 flag 不应被后续写入替换）
+- 新题目追加到文件末尾
 - 只有 `verified` 状态的 flag 才写入
 - 只有 Lead Agent（主对话）可以修改此文件
 
@@ -279,7 +280,7 @@ if __name__ == '__main__':
 |---|------|------|------|------|
 | 1 | Web | Oracle's Whisper | verified | ISCC{...} |
 | 2 | Pwn | Stack Master | in_progress | — |
-| 3 | Misc | Hidden Signal | pending | — |
+| 3 | Misc | Hidden Signal | enumerated | — |
 
 ## Decisions
 | 决策 | 原因 |

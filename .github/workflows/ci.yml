@@ -116,7 +116,7 @@ jobs:
           import json, re, sys, glob
 
           ALLOWED_KEYS = {'challenge', 'name', 'technique', 'status', 'experience', 'artifacts'}
-          ALLOWED_CHALLENGES = {'Web', 'PWN', 'RE', 'MOBILE', 'MISC', 'Crypto', 'Forensics'}
+          ALLOWED_CHALLENGES = {'Web', 'Pwn', 'Re', 'Mobile', 'Misc', 'Crypto', 'Forensics'}
           FLAG_RE = re.compile(r'(ISCC|flag|FLAG|CTF|ENO|HTB|pico)\{')
           IP_RE = re.compile(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?')
           URL_RE = re.compile(r'https?://')

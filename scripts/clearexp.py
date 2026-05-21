@@ -99,9 +99,11 @@ def main():
         print("⚠️  凭据泄露告警:")
         for w in all_warnings:
             print(w)
-        print(f"\n共发现 {len(all_warnings)} 处潜在凭据泄露，请检查后再提交。\n")
+        print(f"\n共发现 {len(all_warnings)} 处潜在凭据泄露。")
+        print("⚠️  已跳过删除，请手动检查并修复后重新运行。")
+        sys.exit(1)
 
-    # Phase 3: 删除 exp_candidate.jsonl
+    # Phase 3: 删除 exp_candidate.jsonl（仅在无凭据告警时执行）
     removed = 0
     for candidate_file in candidates:
         candidate_file.unlink()
@@ -112,10 +114,6 @@ def main():
         print("未发现 exp_candidate.jsonl 文件，无需清理。")
     else:
         print(f"\n清理完成，共删除 {removed} 个文件。")
-
-    # 返回非零退出码如果有凭据告警
-    if all_warnings:
-        sys.exit(1)
 
 
 if __name__ == "__main__":

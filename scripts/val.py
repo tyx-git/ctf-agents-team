@@ -15,6 +15,7 @@
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # 标准品类目录名（全小写）
@@ -123,7 +124,12 @@ def validate_flag_found(flag_found: Path, result: ValidationResult):
                 has_status = line[7:].strip() == "solved"
             elif line.startswith("TIMESTAMP:"):
                 ts = line[10:].strip()
-                has_timestamp = bool(re.match(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", ts))
+                if re.match(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", ts):
+                    try:
+                        datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                        has_timestamp = True
+                    except ValueError:
+                        has_timestamp = False
 
         if has_flag and has_status and has_timestamp:
             result.ok()
@@ -245,6 +251,22 @@ def check_exp_schema(exp_dir: Path, result: ValidationResult):
                                 f"(应 15-150 字符, 当前 {len(item) if isinstance(item, str) else 'non-str'})"
                             )
 
+                # name 字段长度校验 (≤60)
+                name_val = record.get("name", "")
+                if not isinstance(name_val, str) or not (1 <= len(name_val) <= 60):
+                    result.error(
+                        f"{jsonl_file}:{i} — name 长度不符 (应 1-60 字符, "
+                        f"当前 {len(name_val) if isinstance(name_val, str) else 'non-str'})"
+                    )
+
+                # technique 字段长度校验 (≤120)
+                tech_val = record.get("technique", "")
+                if not isinstance(tech_val, str) or not (1 <= len(tech_val) <= 120):
+                    result.error(
+                        f"{jsonl_file}:{i} — technique 长度不符 (应 1-120 字符, "
+                        f"当前 {len(tech_val) if isinstance(tech_val, str) else 'non-str'})"
+                    )
+
                 # 多余字段检查
                 allowed = EXP_REQUIRED_FIELDS | {"artifacts"}
                 extra = set(record.keys()) - allowed
@@ -296,12 +318,22 @@ def main():
     if exp_dir:
         check_exp_schema(exp_dir, result)
     else:
-        # 尝试自动发现经验库
-        auto_exp = competition_dir.parent / ".skills" / "ctf-agents-team" / "exp"
-        if auto_exp.exists():
+        # 尝试自动发现经验库：从比赛目录向上查找 .skills/（最多 3 层）
+        auto_exp = None
+        search_dir = competition_dir.parent
+        for _ in range(3):
+            candidate = search_dir / ".skills" / "ctf-agents-team" / "exp"
+            if candidate.exists():
+                auto_exp = candidate
+                break
+            if search_dir.parent == search_dir:
+                break  # 到达文件系统根
+            search_dir = search_dir.parent
+
+        if auto_exp:
             check_exp_schema(auto_exp, result)
         else:
-            result.warn("未指定经验库路径，跳过 schema 校验")
+            result.warn("未指定经验库路径且自动发现失败，跳过 schema 校验")
 
     print(result.summary())
 
