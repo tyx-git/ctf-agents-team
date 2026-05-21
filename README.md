@@ -127,7 +127,9 @@ ctf-agents-team/
 │   ├── rf-sdr.md               ← RF/SDR/IQ signal processing
 │   └── dns.md                  ← DNS exploitation
 └── scripts/
-    └── bootstrap-linux.sh      ← Tool installation script
+    ├── bootstrap-linux.sh      ← Tool installation script (pyenv + full baseline)
+    ├── clearexp.py             ← Clean exp_candidate.jsonl + credential scan
+    └── val.py                  ← Engineering validation (directory, status, schema)
 ```
 
 ## Prerequisites

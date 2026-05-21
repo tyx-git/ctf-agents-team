@@ -298,8 +298,8 @@ TIMESTAMP: 2026-05-21T14:30:00Z
 ## 每道题的工作流程
 对每道题依次执行：
 1. **侦察** — 进入题目目录，file/strings/xxd/curl 等初步分析
-2. **Quick Check** — 30 秒快速检查（源码泄露、flag 明文、默认凭据）
-3. **分类确认** — 确认题目确实属于本品类（若发现分类错误，在 wp.process 中标注并继续尝试）
+2. **Quick Check** — 30 秒快速筛选（按品类执行对应模板，见 Auto-Solve Quick Patterns 章节）
+3. **分类确认** — 确认题目确实属于本品类（若发现分类错误，在 wp.process 中标注并继续解题，不回交重分发）
 4. **解题** — 应用技术参考中的方法，遵守 2-Action Rule（每 2 次操作更新 wp.process）
 5. **验证** — 确认 flag，达到 verified
 6. **交付（立即执行，不要延迟）** — 创建 题目名称.md + exploit.py + flag.found + exp_candidate.jsonl（不写 flag.log，由 Lead Agent 汇总）
@@ -414,15 +414,65 @@ Lead Agent 在 Phase 1.5 中的具体操作：
 
 **在深度分析前，先用 30 秒检查这些快速路径**：
 
+### 通用（所有品类）
+
+| 检查 | 命令/方法 | 常见命中 |
+|------|----------|---------|
+| Flag 明文 | `strings * \| grep -iE 'flag\|ctf'` | Misc/Forensics |
+| Base64 | 识别 Base64 字符串 → 直接解码 | Misc 编码题 |
+| 经验库命中 | `grep -ri "关键词" exp/[品类]/[品类].jsonl` | 历史相似题 |
+
+### Web
+
 | 检查 | 命令/方法 | 常见命中 |
 |------|----------|---------|
 | 源码/Git 泄露 | `curl -s http://target/.git/HEAD` | Web 题 30%+ |
 | robots.txt | `curl -s http://target/robots.txt` | 禁止目录含 flag |
 | 默认凭据 | admin:admin, admin:password, root:toor | 弱密码题 |
-| Flag 明文 | `strings * \| grep -iE 'flag\|ctf'` | Misc/Forensics |
 | 注释/备份 | `curl http://target/index.php.bak` | .bak/.swp/.DS_Store |
 | 已知 CVE | 识别框架+版本 → 查 CVE | Web/Pwn |
-| Base64 | 识别 Base64 字符串 → 直接解码 | Misc 编码题 |
+
+### Pwn
+
+| 检查 | 命令/方法 | 常见命中 |
+|------|----------|---------|
+| 保护机制 | `checksec --file=[binary]` | 无 canary/PIE → 简单溢出 |
+| 架构确认 | `file [binary]` | 32/64 位、静态/动态链接 |
+| 硬编码 flag | `strings [binary] \| grep -i flag` | 签到 Pwn |
+| 远程探测 | `echo test \| nc [host] [port]` | 观察交互格式 |
+
+### Reverse
+
+| 检查 | 命令/方法 | 常见命中 |
+|------|----------|---------|
+| 文件类型 | `file [binary]` | ELF/PE/Mach-O/pyc |
+| 关键字符串 | `strings [binary] \| grep -iE "flag\|key\|secret"` | 明文 flag/密钥 |
+| 入口点速览 | `objdump -d [binary] \| head -50` | 简单逻辑直接可见 |
+
+### Crypto
+
+| 检查 | 命令/方法 | 常见命中 |
+|------|----------|---------|
+| 密文格式 | `cat [challenge_file]` 观察格式 | 识别编码/算法类型 |
+| 简单解码 | `echo "..." \| base64 -d` 或 `xxd -r -p` | 伪 Crypto 编码题 |
+| RSA 弱模数 | 检查公钥文件模数位数、是否可分解 | 小 n / 共模攻击 |
+
+### Forensics
+
+| 检查 | 命令/方法 | 常见命中 |
+|------|----------|---------|
+| 真实类型 | `file [challenge_file]` | 伪装扩展名 |
+| 嵌入文件 | `binwalk -Me [file]` | 隐藏压缩包/图片 |
+| 明文流量 | `tcpdump -r [file] -A \| head -50` | HTTP 明文传输 flag |
+| 字符串搜索 | `strings [file] \| grep -iE "flag\|CTF"` | 内存/磁盘残留 |
+
+### Mobile
+
+| 检查 | 命令/方法 | 常见命中 |
+|------|----------|---------|
+| 文件类型 | `file [apk/ipa]` | 确认是 APK/IPA |
+| 包内容 | `unzip -l [app.apk]` 或 `zipinfo [app.ipa]` | 异常文件/资源 |
+| 字符串线索 | `strings [file] \| grep -iE "flag\|http\|api"` | 硬编码 URL/flag |
 
 ---
 
