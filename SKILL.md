@@ -24,12 +24,12 @@ ISCC/                           ← 比赛根目录
 ├── task_plan.md                ← 比赛级任务计划（所有题目概览与进度）
 ├── findings.md                 ← 比赛级发现记录（跨题目共性发现）
 ├── progress.md                 ← 比赛级进度日志
-├── flag.txt                    ← 已验证 flag 集中索引
+├── flag.log                    ← 已验证 flag 集中索引
 ├── Web/
 │   ├── A bridge so far/        ← 单道题目录
 │   │   ├── (题目附件/源码)
 │   │   ├── wp.process          ← 解题过程记录（Stage 阶段制）
-│   │   └── wp：A bridge so far.md  ← 最终详细 WP
+│   │   └── A bridge so far.md     ← 最终详细 WP
 │   └── Oracle's Whisper/
 ├── Pwn/
 ├── Re/
@@ -41,7 +41,16 @@ ISCC/                           ← 比赛根目录
 - 比赛目录名 = 用户提供的比赛名称
 - 分类目录固定为 `Web/`、`Pwn/`、`Re/`、`Mobile/`、`Misc/`、`Crypto/`、`Forensics/`（按题目实际类型）
 - 题目目录名 = 题目名称（保留原始大小写和空格）
-- 每道题 **必须** 有 `wp.process`（过程）和 `wp：题目名称.md`（最终 WP）
+- 每道题 **必须** 有 `wp.process`（过程）和 `题目名称.md`（最终 WP），Pwn/Web/Crypto 等可脚本化的题还需 `exploit.py`
+
+**⚠️ 文件命名严格约定**：
+- 最终 WP 文件名 = `题目名称.md`（如题目叫 overflow，则文件为 `overflow.md`）
+- **禁止**使用 `wp：`、`wp:` 等前缀（错误示例：~~`wp：overflow.md`~~）
+- exploit 脚本固定为 `exploit.py`（Pwn/Web/Crypto 等可脚本化的题必须写）
+
+**⚠️ 逐题交付原则**：
+- 每解完一道题，**立即**完成该题的全部交付（WP + exploit.py + 更新 flag.log）
+- **不要**等所有题目做完再统一汇总 — 上下文压缩会导致信息丢失
 
 ---
 
@@ -95,14 +104,36 @@ find $COMPETITION_DIR -mindepth 2 -maxdepth 2 -type d | sort
 
 **Step 1 — 题目发现与分组**：
 
+标准品类列表（固定顺序）：`Web`, `Pwn`, `Re`, `Misc`, `Crypto`, `Forensics`, `Mobile`
+
+> **别名映射**: `Reverse/` 目录视为 `Re` 品类，`MISC/` 视为 `Misc`，大小写不敏感。
+
+**强制检查流程**（逐品类执行）：
 ```bash
-# 扫描所有品类目录下的题目
-for category in Web Pwn Re Reverse Mobile Misc Crypto Forensics; do
-  ls -d $COMPETITION_DIR/$category/*/ 2>/dev/null
+# 对每个标准品类，检查目录是否存在且包含至少一个子目录
+for category in Web Pwn Re Misc Crypto Forensics Mobile; do
+  # 同时检查别名目录 (如 Reverse → Re)
+  target_dir=""
+  if [ -d "$COMPETITION_DIR/$category" ]; then
+    target_dir="$COMPETITION_DIR/$category"
+  elif [ "$category" = "Re" ] && [ -d "$COMPETITION_DIR/Reverse" ]; then
+    target_dir="$COMPETITION_DIR/Reverse"
+  fi
+
+  # 仅当目录存在且包含子目录时才纳入
+  if [ -n "$target_dir" ] && ls -d "$target_dir"/*/ 2>/dev/null | head -1 > /dev/null; then
+    echo "✓ $category: $target_dir"
+  fi
 done
 ```
 
+**检查结果记录**：在 task_plan.md 中明确记录：
+- ✓ 有题目的品类 → 纳入 dispatch 列表
+- ✗ 目录不存在或无题目的品类 → 跳过，记录原因
+
 将发现的题目按品类分组。品类目录名大小写兼容（`Web` = `web` = `WEB`），统一映射到标准名。
+
+**跳过已解题目**：若题目目录内已存在 `题目名称.md`（最终 WP），说明该题已解，直接跳过不纳入待解列表。
 
 **Step 2 — 优先级排序**：
 
@@ -113,36 +144,60 @@ done
 
 **Step 3 — 按品类并行 dispatch**：
 
-对每个非空品类启动一个 Agent，使用 Claude Code 的 Agent tool 并行调度：
+**⚠️ Dispatch Gate（强制前置条件）**：
+
+仅对满足以下 **全部** 条件的品类启动 Agent：
+1. 品类目录存在（Step 1 检查通过，标记为 ✓）
+2. 品类目录下至少有 1 个**未解**题目子目录
+3. 未解题目 = 目录内不存在 `题目名称.md`（最终 WP）
+
+**不满足条件的品类一律跳过，不启动 Agent。**
+
+对每个通过 Gate 的品类启动一个 Agent，使用 Claude Code 的 Agent tool 并行调度：
 
 ```
-Agent 分配示意：
+Agent 分配示意（仅通过 Gate 的品类）：
 ├── Agent (web):       Web/题目A → Web/题目B → Web/题目C
 ├── Agent (pwn):       Pwn/题目X → Pwn/题目Y
 ├── Agent (misc):      Misc/题目M → Misc/题目N → Misc/题目O
-└── Agent (reverse):   Re/题目R → Re/题目S
-    （空品类不启动 Agent）
+└── Agent (re):        Re/题目R → Re/题目S
 ```
+
+**单 Agent 题目数量上限**: 单个品类 Agent 最多处理 **5 道题**。超过 5 道题的品类拆分为多个 Agent（如 web-agent-1, web-agent-2），每个 Agent 分配不超过 5 道题。
 
 **品类 Agent 的职责**：
 - 获得该品类下所有题目的完整解题自主权（Phase 2→6）
 - 按优先级顺序逐题作答（品类内串行）
-- 每道题独立创建 `wp.process` 和 `wp：题目名称.md`
+- 每道题独立创建 `wp.process`、`题目名称.md`，可脚本化的题创建 `exploit.py`
 - 发现 flag 后写入该题目录下的 `flag.found` 文件（格式：`flag{...}`）
-- 解完一题后追加经验到 `exp/` 对应 `.jsonl`
+- 解完一题后，若有可复用经验则追加到 `exp/` 对应 `.jsonl`
 - 遵守时间管理规则：简单题 ≤30min, 中等题 ≤60min, 困难题 ≤90min
+- **品类 Agent 总时间预算**: min(题目数 × 45min, 180min)，超时后停止当前题目，返回已完成的结果
 - 遵守 3-Strike Protocol：同一题卡住 3 次后标记 `abandoned`，继续下一题
 
 **品类 Agent Prompt 模板**见 [orchestrator-playbook.md](references/orchestrator-playbook.md) §Solo 品类 Agent Prompt。
 
 **Step 4 — Lead Agent 监控与汇总**：
 
-所有品类 Agent 返回后，Lead Agent 执行：
-1. 扫描所有题目目录下的 `flag.found` 文件
-2. 汇总到比赛根目录 `flag.txt`（格式：`[类型][题目名称]flag字符串`）
+所有品类 Agent 返回后（包括正常返回和超时/空返回），Lead Agent 执行：
+
+**4.1 返回校验**：
+对每个品类 Agent 的返回结果进行校验：
+- **正常返回**: 包含结构化摘要表（题目/状态/Flag/用时）→ 正常汇总
+- **空返回/超时/异常**:
+  1. 记录到 `progress.md`（哪个品类 Agent 失败、失败原因）
+  2. 扫描该品类目录下已产出的文件（flag.found、WP、wp.process）— Agent 可能部分完成
+  3. 将未完成的题目标记为 `in_progress`（非 abandoned）
+  4. 在最终摘要中向用户报告失败的品类和剩余题目
+
+**⚠️ 不重试整个品类 Agent**（成本太高且可能重复已完成工作），由用户决定后续处理。
+
+**4.2 正常汇总**：
+1. 校验 `flag.log` 完整性（各品类 Agent 已在解题时逐题更新，此处做最终核对）
+2. 扫描所有题目目录下的 `flag.found` 文件，补充遗漏的条目到 `flag.log`
 3. 更新 `task_plan.md`：标记每道题的最终状态
 4. 更新 `progress.md`：记录 Solo 模式整体时间线
-5. 输出解题摘要：已解/未解/abandoned 各多少题
+5. 输出解题摘要：已解/未解/abandoned/Agent失败 各多少题
 
 ### Phase 2: 题目侦察与分类 (Challenge Triage)
 
@@ -268,15 +323,48 @@ strings output.bin | grep -iE '\{.*\}'
 - `evidence` — 强证据但未端到端复现
 - `verified` — 可复现的 flag 路径
 
-**只有达到 `verified` 后才能写最终 WP 和更新 flag.txt。**
+**只有达到 `verified` 后才能写最终 WP 和更新 flag.log。**
 
 ### Phase 6: 写 WP 与交付 (Writeup & Delivery)
 
-1. 将 `wp.process` 中的解题路径整理为最终 WP: `wp：题目名称.md`
+**⚠️ 每道题 verified 后立即执行以下全部步骤，不要延迟到后面统一处理。**
+
+1. 创建最终 WP: `题目名称.md`（如题目叫 overflow → 文件名为 `overflow.md`，**禁止** `wp：` 前缀）
 2. 格式严格遵循 [references/wp-format.md](references/wp-format.md)
-3. 更新比赛根目录 `flag.txt`：每行一条 `[类型][题目名称]flag字符串`
-4. 更新 `task_plan.md` 标记该题为 complete
-5. 更新 `progress.md` 记录解题时间线
+3. **创建 `exploit.py`**（利用脚本）：
+   - **必须写**：Pwn（pwntools 脚本）、Web（requests/urllib 脚本）、Crypto（sage/python 脚本）、有自动化利用逻辑的 Misc
+   - **可跳过**：纯手工分析题（如取证分析、纯逆向无需交互、纯 stego 只需一条命令）
+   - 判断标准：如果解题过程中你执行了多步交互或构造了 payload，就应该写成脚本
+4. **立即更新** 比赛根目录 `flag.log`：追加 `[类型][题目名称] flag字符串`
+5. 更新 `task_plan.md` 标记该题为 complete
+6. 更新 `progress.md` 记录解题时间线
+7. 追加经验到 `exp/` 对应 `.jsonl`（仅当题目有可复用价值时）：
+   - 跳过条件：纯模板题（如直接 ret2win 无任何变体）、签到题、无技术含量的题目
+   - 回写条件：有坑点、非常规技巧、试错路径有参考价值、工具链组合值得记录
+   ```bash
+   # 示例：追加 Pwn 经验
+   echo '{"challenge":"PWN","name":"overflow","technique":"ret2win 栈溢出","status":"solved","experience":["关键经验1","关键经验2"]}' >> exp/pwn/pwn.jsonl
+   ```
+
+### 最终输出格式
+
+所有题目处理完毕后（或单题模式完成后），在对话中输出以下格式的汇总：
+
+```
+| 类型 | 题目名称 | Flag | Exp |
+|------|---------|------|-----|
+| Pwn | overflow | flag{99kls08s6d5a73bcd} | ✓ |
+| Web | 框架漏洞 | flag{spring_rce_2026} | ✓ |
+| Misc | 签到 | flag{welcome} | ✗ |
+
+附加：
+1. Pwn/ea 已完成本地静态分析，正在等待题目地址
+2. Re/obfuscated 反混淆未完成，标记 abandoned
+```
+
+**字段说明**：
+- **Exp**：是否写入了经验库（`✓` 已写入 / `✗` 跳过）
+- **附加**：补充说明未完成的题目状态、阻塞原因、需要用户介入的事项等
 
 ---
 
@@ -300,13 +388,15 @@ strings output.bin | grep -iE '\{.*\}'
 ...
 ```
 
-### wp：题目名称.md（最终 WP）
+### 题目名称.md（最终 WP）
 
 题目 `verified` 后撰写，必须包含：
 1. 题目类型 + 名称
 2. 解题思路（编号列表）
 3. 详细复现步骤（含命令、解释、预期输出）
 4. 完整 EXP 代码
+
+同时，若题目可脚本化（Pwn/Web/Crypto 等），**必须创建独立的 `exploit.py`**（完整可运行脚本，包含 shebang、import、参数定义）。
 5. Flag
 
 ---
@@ -504,7 +594,9 @@ exp/
 ```
 
 **使用时机**：Phase 2 侦察后、Phase 4 解题卡住时
-**更新时机**：Phase 6 WP 完成后，将新经验追加到对应 `.jsonl`
+**更新时机**：Phase 6 WP 完成后，若题目有可复用经验则追加到对应 `.jsonl`。纯模板题、签到题无需回写。
+
+**注意**：经验库路径是相对于 skill 目录（`.skills/ctf-agents-team/exp/`），而非比赛目录。
 
 **JSONL 字段** (每行一条 JSON)：
 - `challenge`: 题目编号

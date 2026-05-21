@@ -1,6 +1,6 @@
 # WP 格式规范
 
-本文档定义 `wp.process`（解题过程）和 `wp：题目名称.md`（最终 WP）的格式规范。
+本文档定义 `wp.process`（解题过程）和 `题目名称.md`（最终 WP）的格式规范。
 
 ---
 
@@ -110,9 +110,9 @@ token = jwt.encode({"user": "admin", "role": "admin"}, "weak_key_123", algorithm
 
 ---
 
-## 二、wp：题目名称.md — 最终详细 WP
+## 二、题目名称.md — 最终详细 WP
 
-**位置**：`<比赛>/<分类>/<题目>/wp：题目名称.md`
+**位置**：`<比赛>/<分类>/<题目>/题目名称.md`（如 `overflow.md`、`Oracle's Whisper.md`）
 **时机**：题目 `verified` 后撰写
 **原则**：一个从未见过此题的人，照着 WP 能完整复现
 
@@ -184,6 +184,47 @@ curl -s -X POST http://target:12345/graphql \
 - ...
 ```
 
+### 独立 exploit.py
+
+对于可脚本化的题目（Pwn、Web、Crypto 等），**必须**在题目目录下创建独立的 `exploit.py` 文件。
+纯手工分析题（取证、纯逆向无交互、纯 stego 只需一条命令）可跳过。
+
+**位置**：`<比赛>/<分类>/<题目>/exploit.py`
+
+```python
+#!/usr/bin/env python3
+"""
+题目名称 - Exploit
+比赛: [比赛名]
+类型: [Pwn/Web/Misc/...]
+用法: python3 exploit.py [--remote HOST PORT | --local]
+"""
+from pwn import *  # 或其他需要的库
+
+# ===== 配置 =====
+BINARY = './binary_name'
+HOST = 'target.host'
+PORT = 12345
+
+# ===== exploit 逻辑 =====
+def exploit(r):
+    # 核心利用代码
+    pass
+
+if __name__ == '__main__':
+    if args.REMOTE:
+        r = remote(HOST, PORT)
+    else:
+        r = process(BINARY)
+    exploit(r)
+    r.interactive()
+```
+
+**规则**：
+- 判断标准：解题过程中执行了多步交互或构造了 payload → 写成脚本
+- 脚本必须独立可运行（包含 shebang、import、配置变量）
+- 非 Pwn 题（如 Web/Crypto/Misc）可使用 requests/subprocess/sage 等库替代 pwntools
+
 ### 格式要点
 
 1. **开头**：`[类型] + 题目名称`，如 `Web + Oracle's Whisper`
@@ -194,22 +235,22 @@ curl -s -X POST http://target:12345/graphql \
 
 ---
 
-## 三、flag.txt — 集中索引
+## 三、flag.log — 集中索引
 
-**位置**：`<比赛>/flag.txt`
+**位置**：`<比赛>/flag.log`
 **格式**：每行一条
 
 ```
-[类型][题目名称]flag字符串
+[类型][题目名称] flag字符串
 ```
 
 **类型标签**：`Pwn`, `Web`, `Re`, `Mobile`, `Misc`
 
 **示例**：
 ```
-[Web][Oracle's Whisper]ISCC{timing_0racle_graphql}
-[Pwn][Stack Master]ISCC{r3t2libc_g0t_1t}
-[Misc][Hidden Signal]ISCC{rf_d3m0d_qam16}
+[Web][Oracle's Whisper] ISCC{timing_0racle_graphql}
+[Pwn][Stack Master] ISCC{r3t2libc_g0t_1t}
+[Misc][Hidden Signal] ISCC{rf_d3m0d_qam16}
 ```
 
 **规则**：

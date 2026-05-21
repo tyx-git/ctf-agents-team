@@ -7,7 +7,7 @@ A unified CTF challenge-solving orchestration system for [Claude Code](https://d
 - **7-Phase Workflow**: Session Recovery → Competition Intake → Challenge Triage → Environment Check → Solve → Verification → Writeup
 - **7 Specialist Agents**: Pwn, Web, Reverse, Mobile, Crypto, Misc, Forensics — each with technique cheatsheets and copy-paste templates
 - **12 Deep Knowledge Files**: Python/Bash jails, encodings, games/VMs, Linux privesc, CTFd API, RF/SDR, DNS exploitation (~196KB)
-- **Structured Tracking**: `wp.process` with Stage numbering, `flag.txt` index, competition-level planning files
+- **Structured Tracking**: `wp.process` with Stage numbering, `flag.log` index, competition-level planning files
 - **Planning Discipline**: 2-Action Rule, 3-Strike Protocol, 5-Question Reboot Test (from planning-with-files / Manus patterns)
 - **Auto-Solve Quick Check**: robots.txt, .git leak, default credentials, known CVE — fast-path before deep analysis
 - **CTFd Integration**: API-based challenge listing, attachment download, flag submission
@@ -67,13 +67,13 @@ Jumps directly into a specific challenge and runs the full solve pipeline (triag
 2. **Environment Check** — Verifies required tools are available, installs missing pip packages
 3. **Solve** — Loads the relevant specialist reference, applies techniques, tracks progress in `wp.process`
 4. **Verification** — Confirms flag with confidence levels (guess → evidence → verified)
-5. **Writeup** — Generates detailed `wp：题目名称.md` with reproducible steps + complete exploit code
+5. **Writeup** — Generates detailed `题目名称.md` with reproducible steps + standalone `exploit.py`
 
 **Solo Mode:**
 1. **Competition Intake** — Scans the competition directory, creates `task_plan.md`, `findings.md`, `progress.md`
 2. **Solo Dispatch** — Groups challenges by category, prioritizes, launches parallel agents
 3. **Parallel Solve** — Each category agent runs the full triage→solve→writeup pipeline per challenge
-4. **Collection** — Lead agent collects all flags into `flag.txt`, updates progress
+4. **Collection** — Lead agent collects all flags into `flag.log`, updates progress
 
 ### Directory structure created
 
@@ -82,12 +82,12 @@ ISCC/                           ← Competition root
 ├── task_plan.md                ← All challenges overview + progress
 ├── findings.md                 ← Cross-challenge discoveries
 ├── progress.md                 ← Session timeline
-├── flag.txt                    ← Verified flags index
+├── flag.log                    ← Verified flags index
 ├── Web/
 │   └── Oracle's Whisper/
 │       ├── (challenge files)
 │       ├── wp.process          ← Stage-by-stage solving log
-│       └── wp：Oracle's Whisper.md  ← Final detailed writeup
+│       └── Oracle's Whisper.md      ← Final detailed writeup
 ├── Pwn/
 ├── Re/
 ├── Mobile/
