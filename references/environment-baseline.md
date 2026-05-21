@@ -3,7 +3,7 @@
 ## 目标环境
 
 - 操作系统：Linux（Kali / Ubuntu / Debian / WSL2）
-- Python：系统 Python3 或 `.venv` 虚拟环境
+- Python：**pyenv 管理**，推荐 3.11.0（fallback: 系统 Python3 或 `.venv`）
 - **纯 Linux 操作**，Windows 命令交给用户执行
 - **工具路径索引**：`workspace.json`（查看已注册工具的路径和用法）
 
@@ -38,26 +38,56 @@
 
 ## 快速安装
 
+### pyenv（Python 版本管理）
+```bash
+# 安装 pyenv
+curl -fsSL https://pyenv.run | bash
+
+# 添加到 shell profile (~/.bashrc 或 ~/.zshrc)
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+
+# 安装推荐 Python 版本
+pyenv install -s 3.11.0
+pyenv global 3.11.0
+```
+
 ### Python 包（pip install — 不需要 sudo）
 ```bash
-pip3 install pwntools ROPGadget ropper z3-solver pycryptodome capstone unicorn \
+pip install pwntools ROPGadget ropper z3-solver pycryptodome capstone unicorn \
   requests httpx beautifulsoup4 lxml scapy pyshark r2pipe \
   numpy sympy pillow opencv-python python-magic gmpy2 \
-  angr pycdc randcrack owiener
+  angr randcrack owiener
 
 # 清华源加速
-pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple <包名>
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <包名>
+```
+
+**验证**（使用 pyenv python 确保指向正确环境）：
+```bash
+pyenv exec python -c "import pwn; print('pwntools', pwn.version)"
+pyenv exec python -c "import angr; print('angr', angr.__version__)"
+pyenv exec python -c "import gmpy2; print('gmpy2 OK')"
 ```
 
 ### 系统工具（apt — 需要 sudo，提示用户执行）
 ```bash
 # 请用户执行：
 sudo apt update && sudo apt install -y \
-  curl git jq wget unzip file make build-essential \
+  curl git jq wget unzip file make build-essential python3-dev \
+  libssl-dev libffi-dev zstd upx-ucl \
   gdb gdb-multiarch patchelf binutils strace ltrace socat netcat-openbsd \
   radare2 binwalk ffmpeg pngcheck foremost \
   libimage-exiftool-perl steghide zbar-tools tshark john hashcat \
-  sqlmap gobuster ffuf
+  sqlmap gobuster ffuf \
+  default-jdk adb
+```
+
+## Ruby 工具（gem）
+```bash
+gem install one_gadget   # Pwn: 自动查找 libc gadget
+gem install zsteg        # Misc: PNG/BMP LSB 隐写
 ```
 
 **注意**：apt 包需要 sudo 权限。如无 sudo，改用 pip 安装 Python 版本或从源码编译到 `~/.local/`。
@@ -96,23 +126,28 @@ pycdc --help 2>/dev/null | head -1 || echo "pycdc not found"
 
 ## 缺包处理原则
 
-- Python 包 → `pip3 install <包名>`，不询问用户
+- Python 包 → `pip install <包名>`（pyenv 环境下无需 sudo）
 - pip 超时/被墙 → 切换清华源
 - apt 包 → **提示用户手动执行** `sudo apt install`
+- Ruby gem → `gem install <包名>`（如 one_gadget, zsteg）
 - 源码编译 → 安装到 `~/.local/`，更新 `workspace.json`
 - 工具安装失败 → 记录到 wp.process，尝试替代工具
+- **验证安装**：使用 `pyenv exec python -c "import ..."` 确保指向正确 Python，消除假阴性
 
 ---
 
-## .venv 约定
+## Python 环境优先级
 
-如果工作区有 `.venv/` 目录，优先使用：
+1. **pyenv**（推荐）：`pyenv global 3.11.0` 后，`python`/`pip` 自动指向正确版本
+2. **.venv**：如果工作区有 `.venv/` 目录，使用 `.venv/bin/python3`
+3. **系统 Python3**：fallback，可能版本较旧
+
 ```bash
-source .venv/bin/activate  # 或
-.venv/bin/python3 script.py
+# 验证当前 Python 来源
+which python3
+python3 --version
+pyenv which python 2>/dev/null  # 如果用 pyenv
 ```
-
-如果没有 `.venv/`，使用系统 Python3。
 
 ---
 

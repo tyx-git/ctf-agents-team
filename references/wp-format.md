@@ -6,7 +6,7 @@
 
 ## 一、wp.process — 解题过程记录
 
-**位置**：`<比赛>/<分类>/<题目>/wp.process`
+**位置**：`<比赛>/<分类>/<题目>/wp.process`（分类目录小写，如 `ISCC/web/题目名称/wp.process`）
 **时机**：Phase 2 分类完成后立即创建，解题过程中持续更新
 **原则**：
 - 每个 Stage 对应一个逻辑步骤
@@ -21,7 +21,7 @@
 ## Challenge Info
 - **比赛**: ISCC 2026
 - **类型**: Web / Pwn / Re / Mobile / Misc
-- **目录**: ISCC/Web/题目名称
+- **目录**: ISCC/web/题目名称
 - **状态**: unsolved / in_progress / solved
 - **Flag 格式**: ISCC{...}（如已知）
 - **远程目标**: http://target:port 或 nc target port（如有）
@@ -112,7 +112,7 @@ token = jwt.encode({"user": "admin", "role": "admin"}, "weak_key_123", algorithm
 
 ## 二、题目名称.md — 最终详细 WP
 
-**位置**：`<比赛>/<分类>/<题目>/题目名称.md`（如 `overflow.md`、`Oracle's Whisper.md`）
+**位置**：`<比赛>/<分类>/<题目>/题目名称.md`（如 `ISCC/pwn/overflow/overflow.md`）
 **时机**：题目 `verified` 后撰写
 **原则**：一个从未见过此题的人，照着 WP 能完整复现
 
@@ -244,7 +244,7 @@ if __name__ == '__main__':
 [类型][题目名称] flag字符串
 ```
 
-**类型标签**：`Pwn`, `Web`, `Re`, `Mobile`, `Misc`
+**类型标签**：`Pwn`, `Web`, `Re`, `Mobile`, `Misc`, `Crypto`, `Forensics`
 
 **示例**：
 ```
@@ -303,16 +303,17 @@ if __name__ == '__main__':
 - Flag 格式: ISCC{...}
 - 平台: CTFd at https://ctf.iscc.org.cn
 - Token: ctfd_xxx（用户提供）
+<!-- ⚠️ 安全提示：提交或分享前务必移除 Token，禁止将 Token 写入经验库或公开仓库 -->
 
 ## 跨题目发现
 - 所有 Web 题共用同一 Docker 集群，内网可互通
 - Flag 前缀统一为 ISCC{
 
 ## 各题速记
-### Web/Oracle's Whisper
+### web/Oracle's Whisper
 - GraphQL Timing Oracle, 逐字符盲注
 
-### Pwn/Stack Master
+### pwn/Stack Master
 - [待分析]
 ```
 
@@ -329,12 +330,12 @@ if __name__ == '__main__':
 - 扫描目录，发现 3 Web + 2 Pwn + 1 Misc
 - 创建 task_plan.md
 
-### 14:10 — Web/Oracle's Whisper
+### 14:10 — web/Oracle's Whisper
 - Stage 001-003 完成
 - Flag verified: ISCC{timing_0racle_graphql}
 - WP 已写
 
-### 15:30 — Pwn/Stack Master
+### 15:30 — pwn/Stack Master
 - Stage 001 完成：识别为栈溢出
 - Stage 002 进行中：泄露 libc
 ```

@@ -25,7 +25,7 @@
 
 | 字段 | 类型 | 必填 | 约束 |
 |------|------|------|------|
-| `challenge` | string | Y | 枚举：`Web` `PWN` `RE` `MOBILE` `MISC` `Crypto` `Forensics`，必须与所在目录对应 |
+| `challenge` | string | Y | 枚举：`Web` `Pwn` `Re` `Mobile` `Misc` `Crypto` `Forensics`，必须与所在目录对应（Mobile 写入 re/ 目录） |
 | `name` | string | Y | 题目原名，1-60 字符 |
 | `technique` | string | Y | 技术链，用 ` + ` 分隔各步骤，1-120 字符 |
 | `status` | string | Y | `solved` 或 `partial` |
@@ -39,6 +39,7 @@
 3. **完整代码**：超过 1 行的代码片段；可以提及函数名/工具名，但不贴代码
 4. **未验证推测**：`status=solved` 的条目中不允许出现"可能"、"猜测"、"未确认"
 5. **多余字段**：只允许上表列出的 6 个字段，其他一律拒绝
+6. **凭据信息**：CTFd Token、API Key、Session ID、密码等任何认证凭据
 
 ---
 
@@ -99,7 +100,7 @@
 |------|---------|
 | `web/web.jsonl` | Web 安全 |
 | `pwn/pwn.jsonl` | 二进制利用 |
-| `reverse/reverse.jsonl` | 逆向 + Mobile |
+| `re/re.jsonl` | 逆向 + Mobile（通过 `challenge` 字段区分） |
 | `misc/misc.jsonl` | 杂项 / 隐写 / 编码 |
 | `crypto/crypto.jsonl` | 密码学 |
 | `forensics/forensics.jsonl` | 取证 |

@@ -235,10 +235,12 @@ TIMESTAMP: 2026-05-21T14:30:00Z
 
 **子 Agent 产出**：每个子 Agent 将经验写入题目目录内的 `exp_candidate.jsonl`，每行一条完整 JSON 记录。
 
+**⚠️ 凭据过滤**：`exp_candidate.jsonl` 中禁止包含 `token`、`api_key`、`session`、`authorization`、`cookie`、`password` 等敏感字段。CTFd Token 仅允许保留在 `findings.md` 中本地使用。
+
 **Lead Agent 合并**：
 1. 收集所有 `exp_candidate.jsonl`
 2. 逐条校验 JSON 格式合法性
-3. 去重后追加到对应品类的经验库文件（如 `exp/reverse/reverse.jsonl`）
+3. 去重后追加到对应品类的经验库文件（如 `exp/re/re.jsonl`）
 4. 合并完成后执行 `python3 .skills/ctf-agents-team/scripts/clearexp.py` 清理所有 `exp_candidate.jsonl`
 
 ### 题目状态枚举
@@ -277,7 +279,7 @@ TIMESTAMP: 2026-05-21T14:30:00Z
 
 ## 比赛信息
 - **比赛名称**: [比赛名]
-- **品类**: [Web/Pwn/Re/Misc/Crypto/Forensics/Mobile]
+- **品类**: [web/pwn/re/misc/crypto/forensics/mobile]
 - **总时间预算**: [Lead Agent 计算填入] 分钟
 - **题目列表** (按优先级排序，最多 5 道):
   1. [题目名A] — [目录路径]
@@ -343,8 +345,8 @@ TIMESTAMP: 2026-05-21T14:30:00Z
 Lead Agent 在 Phase 1.5 中的具体操作：
 
 1. **扫描** — 遍历比赛目录下所有品类子目录，收集题目列表
-   - 标准品类列表：`Web`, `Pwn`, `Re`, `Misc`, `Crypto`, `Forensics`, `Mobile`
-   - **别名映射**: `Reverse/` → `Re`，大小写不敏感
+   - 标准品类列表：`web`, `pwn`, `re`, `misc`, `crypto`, `forensics`, `mobile`
+   - **别名映射**: `reverse/` → `re`，大小写不敏感（`Web/` → `web`）
    - **跳过已解题目**：若题目目录内已存在 `flag.found` 且 TIMESTAMP 有效，视为 solved，直接排除
 2. **分组** — 按品类分组，跳过空品类
 3. **排序** — 每个品类内按优先级排序（经验库命中 > 附件完整度 > 文件大小）

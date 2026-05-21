@@ -82,18 +82,19 @@ ISCC/                           ← Competition root
 ├── task_plan.md                ← All challenges overview + progress
 ├── findings.md                 ← Cross-challenge discoveries
 ├── progress.md                 ← Session timeline
-├── flag.log                    ← Verified flags index
-├── Web/
+├── flag.log                    ← Verified flags index (Lead Agent only)
+├── web/
 │   └── Oracle's Whisper/
 │       ├── (challenge files)
 │       ├── wp.process          ← Stage-by-stage solving log
-│       └── Oracle's Whisper.md      ← Final detailed writeup
-├── Pwn/
-├── Re/
-├── Mobile/
-├── Misc/
-├── Crypto/
-└── Forensics/
+│       ├── flag.found          ← Flag intermediate file
+│       └── Oracle's Whisper.md ← Final detailed writeup
+├── pwn/
+├── re/
+├── mobile/
+├── misc/
+├── crypto/
+└── forensics/
 ```
 
 ## Project Structure
@@ -138,7 +139,7 @@ ctf-agents-team/
 
 ### Recommended tools
 
-The bootstrap script installs everything:
+The bootstrap script installs the full baseline toolset defined in [references/environment-baseline.md](references/environment-baseline.md):
 
 ```bash
 bash .skills/ctf-agents-team/scripts/bootstrap-linux.sh
@@ -154,8 +155,10 @@ The skill integrates with an `exp/` directory for cross-competition knowledge re
 exp/
 ├── web/web.jsonl
 ├── pwn/pwn.jsonl
-├── reverse/reverse.jsonl
-└── misc/misc.jsonl
+├── re/re.jsonl          ← includes Mobile (distinguished by field)
+├── misc/misc.jsonl
+├── crypto/crypto.jsonl
+└── forensics/forensics.jsonl
 ```
 
 Each line is a JSON record:
