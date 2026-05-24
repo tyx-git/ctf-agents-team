@@ -187,8 +187,13 @@ done
 
 对每个通过 Gate 的品类启动一个 Agent，使用 Claude Code 的 Agent tool 并行调度：
 
-```
-Agent 分配示意（仅通过 Gate 的品类）：
+**团队上下文约束**：
+- 并行调度前优先复用当前会话的团队上下文；如果已经是 team leader（例如已在 `default` team），不要再次创建新团队。
+- 只有在当前会话没有可用团队上下文时，才执行 `TeamCreate`。
+- 若系统提示 `Already leading team "default"`，说明重复创建团队；此时直接复用现有团队继续分发。
+- 只有在明确结束上一轮并行批次后，才先 `TeamDelete` 再重新 `TeamCreate`。
+
+
 ├── Agent (web):       web/题目A → web/题目B → web/题目C
 ├── Agent (pwn):       pwn/题目X → pwn/题目Y
 ├── Agent (misc):      misc/题目M → misc/题目N → misc/题目O
