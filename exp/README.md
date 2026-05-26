@@ -15,6 +15,13 @@
   "experience": [                 // 必填 · 数组 · 3-8 条
     "一条可复用经验。"              //   每条 15-150 字符
   ],
+  "failed_attempts": [            // 可选 · 记录试错路径 · 1-5 条
+    {                             //   每条含三个子字段
+      "approach":   "尝试了什么方法",
+      "why_failed": "失败原因",
+      "lesson":     "学到了什么"
+    }
+  ],
   "artifacts": {                  // 可选 · 仅放可复用的技术参数
     "offset": "0x108"             //   值只能是 string 或 number
   }
@@ -30,6 +37,7 @@
 | `technique` | string | Y | 技术链，用 ` + ` 分隔各步骤，1-120 字符 |
 | `status` | string | Y | `solved` 或 `partial` |
 | `experience` | string[] | Y | 3-8 条，每条 15-150 字符 |
+| `failed_attempts` | object[] | N | 1-5 条，每条含 `approach` + `why_failed` + `lesson`，各子字段 15-150 字符 |
 | `artifacts` | object | N | key=参数名，value=string\|number；禁止嵌套对象 |
 
 ### 禁止内容（任何字段均适用）
@@ -38,7 +46,7 @@
 2. **远程地址**：IP、端口、URL（如 `39.96.193.120:10000`, `http://...`）
 3. **完整代码**：超过 1 行的代码片段；可以提及函数名/工具名，但不贴代码
 4. **未验证推测**：`status=solved` 的条目中不允许出现"可能"、"猜测"、"未确认"
-5. **多余字段**：只允许上表列出的 6 个字段，其他一律拒绝
+5. **多余字段**：只允许上表列出的 7 个字段（challenge, name, technique, status, experience, failed_attempts, artifacts），其他一律拒绝
 6. **凭据信息**：CTFd Token、API Key、Session ID、密码等任何认证凭据
 
 ---
@@ -76,6 +84,36 @@
 ✗ "flag 是 ISCC{abcdef}"                            → 包含 flag 值
 ✗ "可能是栈溢出也可能是堆"                              → 未验证推测不能出现在 solved 条目
 ✗ "这道题先 checksec 看保护再 gdb 调一下看看栈布局然后构造 ROP 链最后打远程" → 流水账，应拆成多条
+```
+
+---
+
+## failed_attempts 条目写法
+
+### 格式
+
+每条记录一个失败的尝试方向，包含三个子字段：
+
+- `approach` — 尝试了什么方法/工具/路径
+- `why_failed` — 为什么这条路走不通
+- `lesson` — 学到了什么，下次遇到类似场景应该怎么判断
+
+### 好的示例
+
+```jsonc
+// 记录具体的试错路径，三个字段各 15-150 字符
+{"approach": "用 john --incremental 暴力破解 ZIP 密码",
+ "why_failed": "密码 10 位以上且含特殊字符，暴力空间远大于当前算力上限",
+ "lesson": "8 位以上非字典密码先找题面线索，不要上暴力"}
+```
+
+### 坏的示例
+
+```
+✗ 三个字段写同样的内容                 → 没有信息增量
+✗ approach 写"尝试各种方法"           → 太笼统
+✗ lesson 写"下次注意"                → 无可迁移价值
+✗ 含 flag 值、IP、凭据等禁止内容       → schema 校验拒绝
 ```
 
 ---

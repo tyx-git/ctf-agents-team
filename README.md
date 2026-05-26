@@ -128,8 +128,9 @@ ctf-agents-team/
 │   └── dns.md                  ← DNS exploitation
 └── scripts/
     ├── bootstrap-linux.sh      ← Tool installation script (pyenv + full baseline)
-    ├── clearexp.py             ← Clean exp_candidate.jsonl + credential scan
-    └── val.py                  ← Engineering validation (directory, status, schema)
+    ├── AddExp.py               ← Unified exp append — syncs ~/.claude and ~/.codex stores
+    ├── ClearExp.py             ← Clean exp_candidate.jsonl + credential scan
+    └── CheckFiles.py           ← Strong file existence check + engineering validation
 ```
 
 ## Prerequisites

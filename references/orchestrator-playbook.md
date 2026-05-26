@@ -242,8 +242,12 @@ TIMESTAMP: 2026-05-21T14:30:00Z
 **Lead Agent 合并**：
 1. 收集所有 `exp_candidate.jsonl`
 2. 逐条校验 JSON 格式合法性
-3. 去重后追加到对应品类的经验库文件（如 `exp/re/re.jsonl`）
-4. 合并完成后执行 `python3 .skills/ctf-agents-team/scripts/clearexp.py` 清理所有 `exp_candidate.jsonl`
+3. 对每条记录使用 `AddExp.py --commit` 追加（自动去重 + 同步全部仓库）：
+   ```bash
+   python3 .skills/ctf-agents-team/scripts/AddExp.py --commit '<json_line>'
+   ```
+   `AddExp.py` 自动发现 `~/.claude/skills/ctf-agents-team/exp/` 和 `~/.codex/skills/ctf-agents-team/exp/` 并同时写入，确保两个用户级仓库一致。**不写入项目本地 `.skills/ctf-agents-team/exp/`**（如需将用户级最新内容拉到项目本地，使用 `python3 .skills/ctf-agents-team/scripts/AddExp.py --debug-syn` 手动同步）。
+4. 合并完成后执行 `python3 .skills/ctf-agents-team/scripts/ClearExp.py` 清理所有 `exp_candidate.jsonl`
 
 ### 题目状态枚举
 

@@ -39,3 +39,4 @@ task_plan.md
 
 # Intermediate files (sub-agent outputs, cleaned by clearexp.py)
 exp_candidate.jsonl
+.claude/
