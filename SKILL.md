@@ -514,7 +514,7 @@ strings output.bin | grep -iE '\{.*\}'
 3. 详细复现步骤（含命令、解释、预期输出）
 4. 完整 EXP 代码
 
-同时，若题目可脚本化（Pwn/Web/Crypto 等），**必须创建独立的 `exploit.py`**（完整可运行脚本，包含 shebang、import、参数定义）。
+同时，若题目可脚本化（Pwn/Web/Crypto 等），**必须创建独立的 `exploit.py`**（完整可运行脚本，包含 shebang、import，`python3 exploit.py` 无参数即可运行获取 flag）。
 5. Flag
 
 ---

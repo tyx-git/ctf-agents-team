@@ -167,16 +167,11 @@ curl -s -X POST http://target:12345/graphql \
 #!/usr/bin/env python3
 """
 题目名称 - 完整 Exploit
-用法: python3 exp.py [target] [port]
+用法: python3 exploit.py
 """
 # 完整可运行的 exploit 代码
-# 包含必要的 import、参数解析、核心逻辑
+# 包含必要的 import，无参数即可运行
 ```
-
-**参数说明**：
-- `--target` — 目标地址
-- `--port` — 目标端口
-- ...
 
 **注意事项**：
 - [如：时序攻击受网络波动影响，需多轮采样]
@@ -197,14 +192,14 @@ curl -s -X POST http://target:12345/graphql \
 题目名称 - Exploit
 比赛: [比赛名]
 类型: [Pwn/Web/Misc/...]
-用法: python3 exploit.py [--remote HOST PORT | --local]
+用法: python3 exploit.py
 """
 from pwn import *  # 或其他需要的库
 
 # ===== 配置 =====
-BINARY = './binary_name'
 HOST = 'target.host'
 PORT = 12345
+BINARY = './binary_name'
 
 # ===== exploit 逻辑 =====
 def exploit(r):
@@ -212,16 +207,14 @@ def exploit(r):
     pass
 
 if __name__ == '__main__':
-    if args.REMOTE:
-        r = remote(HOST, PORT)
-    else:
-        r = process(BINARY)
+    r = remote(HOST, PORT)
     exploit(r)
     r.interactive()
 ```
 
 **规则**：
 - 判断标准：解题过程中执行了多步交互或构造了 payload → 写成脚本
+- **`python3 exploit.py` 无参数即可直接运行获取 flag**
 - 脚本必须独立可运行（包含 shebang、import、配置变量）
 - 非 Pwn 题（如 Web/Crypto/Misc）可使用 requests/subprocess/sage 等库替代 pwntools
 
