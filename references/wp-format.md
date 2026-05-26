@@ -2,6 +2,8 @@
 
 本文档定义 `wp.process`（解题过程）和 `题目名称.md`（最终 WP）的格式规范。
 
+> **比赛根目录规则**：用户输入的首个路径分量即为比赛根目录（如 `BugKu/pwn/above` → 根目录 `BugKu/`）。所有比赛级文件（`limit.md`、`task_plan.md`、`findings.md`、`progress.md`、`flag.log`）**始终写入比赛根目录**，不受子路径影响。
+
 ---
 
 ## 一、wp.process — 解题过程记录
@@ -22,7 +24,7 @@
 - **比赛**: ISCC 2026
 - **类型**: Web / Pwn / Re / Mobile / Misc
 - **目录**: ISCC/web/题目名称
-- **状态**: unsolved / in_progress / solved
+- **状态**: enumerated / in_progress / solved / verified
 - **Flag 格式**: ISCC{...}（如已知）
 - **远程目标**: http://target:port 或 nc target port（如有）
 
@@ -254,7 +256,29 @@ if __name__ == '__main__':
 
 ---
 
-## 四、task_plan.md — 比赛级任务计划
+## 四、limit.md — 比赛/平台解题限制
+
+**位置**：`<比赛>/limit.md`
+
+此文件记录该比赛或平台对解题行为的限制条件，帮助 Agent 调整解题策略（如降低请求频率、增加超时等）。
+
+**格式**：纯文本 / Markdown，空文件表示无特殊限制。
+
+**示例**：
+```markdown
+# ISCC 2026 平台限制
+
+- 请求频率：每分钟不超过 30 次 API 请求
+- 全局超时：单次连接 30 秒无响应视为超时
+- CTFd Token 有效期：8 小时，过期需重新登录
+- 禁止操作：端口扫描、DoS 测试
+```
+
+**读取时机**：Phase 1（比赛入场）时读取，Agent 在 Phase 2+ 中根据限制内容调整请求策略。
+
+---
+
+## 五、task_plan.md — 比赛级任务计划
 
 **位置**：`<比赛>/task_plan.md`
 
@@ -288,7 +312,7 @@ if __name__ == '__main__':
 
 ---
 
-## 五、比赛级 findings.md
+## 六、比赛级 findings.md
 
 ```markdown
 # Findings: [比赛名称]
@@ -313,7 +337,7 @@ if __name__ == '__main__':
 
 ---
 
-## 六、比赛级 progress.md
+## 七、比赛级 progress.md
 
 ```markdown
 # Progress: [比赛名称]

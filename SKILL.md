@@ -233,6 +233,11 @@ TIMESTAMP: 2026-05-21T14:30:00Z
 
 **品类 Agent Prompt 模板**见 [orchestrator-playbook.md](references/orchestrator-playbook.md) §Solo 品类 Agent Prompt。
 
+启动每个品类 Agent **前**，Lead Agent **必须**：
+- 根据该品类题目列表计算总时间预算：`min(题目数 × 45min, 180min)`
+- 将该值填入 Agent prompt 模板的 `总时间预算` 字段
+- 确认 prompt 中无残留占位符（如 `[由 Lead Agent 计算填入]`）后再 dispatch
+
 **Step 4 — Lead Agent 监控与汇总**：
 
 所有品类 Agent 返回后（包括正常返回和超时/空返回），Lead Agent 执行：
@@ -349,12 +354,31 @@ grep -ri "关键词" .skills/ctf-agents-team/exp/web/web.jsonl .skills/ctf-agent
 
 确认当前 Linux 环境具备解题所需工具。工具清单和安装方法见 [references/environment-baseline.md](references/environment-baseline.md)。
 
-**基础检查**：
+**Step 1 — 加载工具注册表**：
+
+`workspace.json` 记录了所有已安装工具的路径和版本。优先使用其中注册的工具路径，避免 `which` 遗漏。
+
+```bash
+# 读取 workspace.json（存在则加载工具索引）
+# workspace.json 位于比赛工作区根目录（与比赛目录同级）
+if [ -f workspace.json ] || [ -f ../workspace.json ]; then
+    echo "workspace.json 已加载 — 优先使用注册工具路径"
+    # 工具在 workspace.json 的以下位置分类登记：
+    # Linux.tools.reverse_linux_tools  — 逆向/反编译
+    # Linux.tools.web_security         — Web 工具
+    # Linux.tools.general_tools        — 通用工具 (gobuster/ffuf/nc/socat 等)
+    # Linux.footools.tools.*           — 本地解题脚本库
+fi
+```
+
+**Step 2 — 基础检查**：
 ```bash
 python3 --version && pip3 --version
 ```
 
-**按品类检查关键工具**（根据 Phase 2 分类结果选择对应行）：
+**Step 3 — 按品类检查关键工具**（根据 Phase 2 分类结果选择对应行）：
+
+在 `workspace.json` 的工具索引中查找对应工具路径，找不到时再降级到 `which`/`command -v`。注意 `~/.local/bin/` 下的用户级安装工具。：
 
 | 品类 | 必须验证 |
 |------|---------|
@@ -405,6 +429,7 @@ python3 --version && pip3 --version
 4. 加载新 category 的 specialist reference
 5. **不要删除已有 Stage** — 错误分类下的发现可能仍有价值
 6. **⚠️ 不回交 Lead Agent 重分发** — 子 Agent 自行处理分类修正并继续解题。实际比赛中 Misc 等品类常包含密码学、逆向等交叉内容，严格重分往往低效。比赛结束后由人工复盘修正经验库归属。
+7. **单题模式同理** — Lead Agent 直接解题时发现分类错误，同样按上述 1-5 步自行处理，不回退到 Phase 2 重分类。
 
 **常见跨 category 模式**：
 - Forensics + Crypto: PCAP 中加密数据需解密

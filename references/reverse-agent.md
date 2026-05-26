@@ -122,6 +122,23 @@ simgr.use_technique(angr.exploration_techniques.Veritesting())
 
 # 内存中搜索 flag（不需要知道 success 地址）
 simgr.explore(find=lambda s: b'flag{' in s.posix.dumps(1))  # stdout 含 flag
+
+# SimProcedure 替换复杂函数
+class IgnoreStrcmp(angr.SimProcedure):
+    def run(self, a1, a2):
+        return claripy.BVV(0, 32)  # 永远返回 "相等"
+
+proj.hook_symbol('strcmp', IgnoreStrcmp())
+
+# 从函数中间开始执行 (跳过反调试/初始化)
+state = proj.factory.blank_state(addr=0x401200)  # 跳过 0x401000-0x4011ff
+state.regs.rdi = symbolic_input_addr  # 手动设置参数
+
+# 路径修剪 — 避免无用分支
+def prune_filter(state):
+    return b'bad' not in state.posix.dumps(1)
+simgr = proj.factory.simgr(state, save_unconstrained=True)
+simgr.step(until=lambda s: s.active and len(s.active) < 100)
 ```
 
 ### Unicorn Engine 模拟执行
@@ -193,6 +210,44 @@ agf @ main  # 控制流图: 一个大 dispatcher + 多个 case block
 # angr 的符号执行天然不受 CFF 影响（因为它追踪数据流而非控制流）
 ```
 
+### 自定义虚拟机分析
+```bash
+# 特征: binary 中包含解释器 + bytecode
+# 检测: 巨型 switch (opcode dispatch) + 数据段中有连续的 bytecode blob
+
+# 分析步骤:
+# 1. 定位 dispatch 循环 (switch(opcode) + 取指 + 更新 PC)
+# 2. 提取 bytecode blob (从 .rodata 或附加段)
+# 3. 编写 trace 脚本记录每条指令的操作
+# 4. 使用 Unicorn 模拟执行并 dump 中间状态
+# 5. 构建 opcode → 操作映射表
+```
+
+```python
+# Unicorn trace VM 执行
+from unicorn import *
+
+mu = Uc(UC_ARCH_X86, UC_MODE_64)
+mu.mem_map(0x400000, 0x100000)  # 代码段 + bytecode 段
+code = open('./binary', 'rb').read()
+mu.mem_write(0x400000, code)
+
+# trace VM 指令
+vm_instrs = []
+def hook_code(uc, addr, size, ud):
+    if 0x401500 <= addr < 0x401800:  # VM dispatch 范围
+        rip_val = uc.reg_read(UC_X86_REG_RIP)
+        opcode = uc.mem_read(uc.reg_read(UC_X86_REG_RAX), 1)  # 假设 opcode 在 rax
+        vm_instrs.append((addr, opcode.hex(), uc.reg_read(UC_X86_REG_RBX)))
+
+mu.hook_add(UC_HOOK_CODE, hook_code)
+mu.emu_start(0x401000, 0x402000)
+
+# 分析 trace 推断 opcode 语义
+for addr, op, rb in vm_instrs[:30]:
+    print(f"  0x{addr:x}: op={op} rb=0x{rb:x}")
+```
+
 ### Frida 用于 Native 二进制 (非 Mobile 场景)
 ```bash
 # Frida 也可以 hook Linux ELF (不只是 Android)
@@ -219,6 +274,28 @@ Interceptor.attach(base.add(0x1234), {
         console.log("return: " + retval);
     }
 });
+
+### Frida 自动化脚本模板 (Python)
+```python
+import frida, sys
+
+session = frida.attach("binary")  # or frida.spawn("./binary")
+script = session.create_script("""
+Interceptor.attach(ptr("%s"), {
+    onEnter: function(args) {
+        console.log("called!");
+        // args[0], args[1], ...
+    },
+    onLeave: function(retval) {
+        console.log("ret -> " + retval);
+    }
+});
+""")
+script.load()
+sys.stdin.read()
+
+# 完整 dump 内存 (解决 PyArmor/upx 脱壳)
+# frida -p PID -e "var m = Process.enumerateRanges('rwx'); m.forEach(r => { if (r.size < 1024*1024) console.log(r.base + ':' + r.size + ':' + hexdump(Memory.readByteArray(r.base, r.size), {offset:0,length:r.size})); })"
 ```
 
 ### 常见加密算法识别
@@ -292,6 +369,28 @@ with open('main.pyc', 'rb') as f:
     code = marshal.load(f)
     dis.dis(code)
 "
+
+# PyArmor 脱壳
+# 特征: 导入 _pytransform, 运行时解密 bytecode
+# 方法 1: Frida 内存 dump
+# frida -f packed.exe -l hook.js --no-pause
+# Interceptor.attach(Module.findExportByName(None,'PyMarshal_ReadObjectFromString'),{onLeave(retval){console.log(retval);}})
+
+# 方法 2: Audit hook (Python 3.9.7+)
+# python3 -c "
+# import sys; dumped=[]
+# def hook(name,args):
+#   if name=='code.__new__': dumped.append(args[0])
+# sys.addaudithook(hook); import obfuscated_module
+# open('dump.pyc','wb').write(dumped[0])
+# "
+
+# 方法 3: pyarmor-unpacker (github DimaReverse/pyarmor-unpacker)
+# 解包后 pycdc 反编译
+
+# PyArmor v8+: 全进程内存 dump + strings 搜索
+# procdump / frida 抓进程内存 → strings dump.bin | grep -i flag
+```
 ```
 
 ### Packed / UPX 脱壳
@@ -350,11 +449,61 @@ monodis assembly.exe
 ildasm assembly.dll
 ```
 
+### 固件 / 嵌入式分析
+```bash
+# 检测固件类型
+binwalk firmware.bin          # 检测嵌入的文件系统 / 已知签名
+binwalk -E firmware.bin       # 熵分析 (高熵 = 加密/压缩, 低熵 = 明文)
+binwalk -e firmware.bin       # 自动提取
+
+# ESP32 固件
+# esp32_image_parser:  raw flash → ELF (Ghidra 可分析)
+python3 esp32_image_parser.py dump_flash firmware.bin
+
+# 提取 NVS (Non-Volatile Storage) 分区
+python3 espressif_nvs_analyzer.py nvs_partition.bin
+
+# QEMU 模拟嵌入式固件
+# 1. binwalk 提取文件系统
+# 2. 找到启动脚本 (run.sh / bootargs)
+# 3. QEMU system-mode 模拟
+qemu-system-arm -M virt -kernel vmlinux -drive file=squashfs.img,format=raw -nographic
+
+# 常见嵌入式 CTF 结构:
+# - 裸机 ARM/MIPS 固件 → Ghidra (手动指定基址)
+# - ESP32 flash dump → esp32_image_parser + Ghidra
+# - Linux 嵌入式 (squashfs, initramfs) → binwalk + QEMU
+```
+
 ### WASM 分析
 ```bash
 wasm2wat main.wasm -o main.wat
 # 阅读 WAT，寻找验证/比较逻辑
 # 修改后: wat2wasm main.wat -o patched.wasm
+```
+
+### 二进制差异对比 (Patch Diff)
+```bash
+# 场景: 题目提供 patched 版本和原始版本，找差异
+
+# 1. 字节级对比 (radiff2)
+radiff2 binary.orig binary.patched   # 输出差异地址和字节
+
+# 2. 反汇编级对比
+diff <(objdump -d binary.orig) <(objdump -d binary.patched) | grep -E '^[<>]' | head -30
+
+# 3. Diaphora (免费 bindiff 替代)
+# IDA 插件: 函数匹配、伪代码差异、基本块对比
+# python3 diaphora.py --ida binary.orig binary.patched
+
+# 4. 手动 patch 提取 (python)
+python3 -c "
+o = open('binary.orig','rb').read(); p = open('binary.patched','rb').read()
+for i in range(min(len(o),len(p))):
+    if o[i] != p[i]: print(f'0x{i:x}: {o[i]:02x} → {p[i]:02x}')
+"
+
+# 常见 patch 场景: 跳转条件反转 (jnz→jz/jmp), 密钥替换, 函数调用移除
 ```
 
 ---
@@ -379,6 +528,67 @@ if s.check() == sat:
     m = s.model()
     result = ''.join(chr(m[f].as_long()) for f in flag)
     print(result)
+
+# BitVec 数组 (用于多轮 XOR/置换)
+key = [BitVec(f'k{i}', 8) for i in range(8)]
+for i in range(len(cipher)):
+    s.add(cipher[i] == plain[i] ^ key[i % 8])
+
+# Extract/Concat (位提取和拼接，用于位旋转)
+from z3 import Extract, Concat
+x = BitVec('x', 32)
+rot_left_14 = Concat(Extract(17, 0, x), Extract(31, 18, x))  # ROL 14
+
+# S-Box 约束 (直接编码置换表)
+s_box = [0x63, 0x7c, 0x77, ...]  # AES S-Box
+for i in range(256):
+    s.add(If(x == i, y == s_box[i], True))  # y = s_box[x]
+
+# 线性方程组 (整数运算，无模数)
+x, y, z = Ints('x y z')
+s.add(x + y - z == 10, 2*x - y + z == 5, x + 3*y + z == 15)
+
+# UNSAT 调试
+if s.check() == unsat:
+    print(s.to_smt2())  # 导出 SMT-LIB2 定位冲突约束
+    # 分段测试: 每次启用一半约束，二分法定位
+    for c in s.assertions():
+        t = Solver()
+        t.add(c)
+        print(f"{c}: {t.check()}")  # 单约束检查
+```
+
+### 求解器规范与 WP 记录
+
+## 求解器规范与 WP 记录
+
+### Solver 要求
+```python
+# 1. python3 solver.py 直接输出 flag，无手动步骤
+# 2. 标注关键函数地址、约束来源、patch 点
+# 3. 包含完整注释，不依赖逆向者后续操作
+
+def solve():
+    # === Key Functions ===
+    # check_flag @ 0x401234 (XOR loop + compare)
+    #
+    # === Constraints (from check_flag) ===
+    # - flag length: 32 (cmp eax, 32 @ 0x401220)
+    # - xor key: [0x42, 0x13, 0x37] (from 0x401234 loop)
+    # - expected: .rodata:0x404000 (32 bytes)
+    #
+    # === Patches ===
+    # - 0x401000: ptrace → NOP (anti-debug bypass)
+
+    from z3 import *
+    solver = Solver()
+    flag = [BitVec(f'f{i}', 8) for i in range(32)]
+    # ... constraints from reversing ...
+    assert solver.check() == sat, "unsat — check constraints"
+    return bytes([solver.model()[f].as_long() for f in flag])
+
+if __name__ == '__main__':
+    print(solve().decode())
 ```
 
 ---

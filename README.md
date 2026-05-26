@@ -60,6 +60,9 @@ Jumps directly into a specific challenge and runs the full solve pipeline (triag
 /ctf-agents-team
 ```
 
+
+> **Competition root**: The first path component of the input is the competition root (`ISCC` → `ISCC/`, `BugKu/pwn/above` → `BugKu/`). All competition-level files (`limit.md`, `task_plan.md`, `findings.md`, `progress.md`, `flag.log`) are written to this root directory.
+
 ### What happens
 
 **Single-Challenge Mode:**
@@ -79,6 +82,7 @@ Jumps directly into a specific challenge and runs the full solve pipeline (triag
 
 ```
 ISCC/                           ← Competition root
+├── limit.md                    ← Competition constraints (rate limits, timeouts)
 ├── task_plan.md                ← All challenges overview + progress
 ├── findings.md                 ← Cross-challenge discoveries
 ├── progress.md                 ← Session timeline
