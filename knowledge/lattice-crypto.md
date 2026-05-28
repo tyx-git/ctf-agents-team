@@ -1,3 +1,23 @@
+---
+title: "CTF Crypto - Lattice Cryptanalysis"
+categories:
+  - crypto
+topics:
+  - "lattice"
+  - "LLL"
+  - "Coppersmith"
+  - "HNP"
+  - "knapsack"
+signals:
+  - "LLL"
+  - "Coppersmith"
+  - "small root"
+  - "HNP"
+  - "nonce leak"
+  - "knapsack"
+  - "partial key"
+load_when: "Crypto 题出现格密码、小根、偏置 nonce、部分密钥泄露或背包问题。"
+---
 # CTF Crypto - Lattice Cryptanalysis
 
 > **适用版本**: SageMath 9.x+, Python 3.8+, fpylll, flatter

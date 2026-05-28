@@ -1,3 +1,25 @@
+---
+title: "CTF Misc - RF / SDR / IQ Signal Processing"
+categories:
+  - misc
+  - forensics
+topics:
+  - "RF"
+  - "SDR"
+  - "IQ"
+  - "QAM"
+  - "signal processing"
+signals:
+  - "iq"
+  - "sdr"
+  - "rf"
+  - "qam"
+  - "fm"
+  - "am"
+  - "wav"
+  - "signal"
+load_when: "题目涉及 RF/SDR/IQ 文件、调制解调、频谱或信号处理。"
+---
 # CTF Misc - RF / SDR / IQ Signal Processing
 
 > **适用版本**: GNU Radio 3.10+, Python 3.8+, numpy/scipy

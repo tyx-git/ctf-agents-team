@@ -1,3 +1,24 @@
+---
+title: "CTF Misc - Encodings & Media"
+categories:
+  - misc
+topics:
+  - "encoding"
+  - "QR"
+  - "esolang"
+  - "media"
+  - "base conversion"
+signals:
+  - "base64"
+  - "hex"
+  - "QR"
+  - "brainfuck"
+  - "morse"
+  - "stego"
+  - "audio"
+  - "image"
+load_when: "题目出现多层编码、二维码、esolang、图片/音频隐写或格式转换。"
+---
 # CTF Misc - Encodings & Media
 
 > **适用版本**: Python 3.8+, CyberChef, zbarimg, PIL/Pillow

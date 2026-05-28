@@ -1,3 +1,21 @@
+---
+title: "CTF Misc - Games, VMs & Constraint Solving Part 4"
+categories:
+  - misc
+  - web
+topics:
+  - "XSLT"
+  - "JavaScript tricks"
+  - "OEIS"
+  - "bytebeat"
+signals:
+  - "XSLT"
+  - "xsltproc"
+  - "OEIS"
+  - "bytebeat"
+  - "javascript trick"
+load_when: "题目涉及 XSLT、奇技淫巧 JS、数列识别或 bytebeat。"
+---
 # CTF Misc - Games, VMs & Constraint Solving (Part 4)
 
 > **适用版本**: Python 3.8+, Selenium, XSLT processors

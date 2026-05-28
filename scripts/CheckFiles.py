@@ -47,12 +47,14 @@ FORBIDDEN_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"),
     re.compile(r"https?://", re.IGNORECASE),
     re.compile(r"ctfd_[a-zA-Z0-9]{10,}", re.IGNORECASE),
-    re.compile(r'"api[_-]?key"\s*:\s*"[^"]{3,}"', re.IGNORECASE),
-    re.compile(r'"session"\s*:\s*"[^"]{8,}"', re.IGNORECASE),
-    re.compile(r'"authorization"\s*:\s*"[^"]{3,}"', re.IGNORECASE),
-    re.compile(r'"password"\s*:\s*"[^"]{3,}"', re.IGNORECASE),
+    re.compile(r"token[\"']?\s*[:=]\s*[\"']?[^\"'\s,}]{8,}", re.IGNORECASE),
+    re.compile(r"api[_-]?key[\"']?\s*[:=]\s*[\"']?[^\"'\s,}]{8,}", re.IGNORECASE),
+    re.compile(r"session[\"']?\s*[:=]\s*[\"']?[^\"'\s,}]{8,}", re.IGNORECASE),
+    re.compile(r"authorization[\"']?\s*[:=]\s*[\"']?[^\"'\s,}]{8,}", re.IGNORECASE),
+    re.compile(r"password[\"']?\s*[:=]\s*[\"']?[^\"'\s,}]{3,}", re.IGNORECASE),
     re.compile(r"bearer\s+[a-zA-Z0-9._-]{20,}", re.IGNORECASE),
 ]
+SENSITIVE_JSON_KEYS = {"token", "api_key", "api-key", "session", "authorization", "cookie", "password"}
 
 # ── 结果收集器 ──────────────────────────────────────────────────────────
 
@@ -273,6 +275,35 @@ def check_key_file_naming(challenge_dir: Path, report: Report) -> None:
             report.warn("文件命名", f"exploit 脚本名非标准: {f.name}（应为 exploit.py）", str(f))
 
 
+
+
+def _iter_json_values(value: Any, path: str = ""):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            yield from _iter_json_values(child, child_path)
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            yield from _iter_json_values(child, f"{path}[{idx}]")
+    else:
+        yield path, value
+
+
+def _find_forbidden_json_content(value: Any) -> tuple[str, str] | None:
+    for path, item in _iter_json_values(value):
+        key = path.rsplit(".", 1)[-1].split("[", 1)[0].lower()
+        if key in SENSITIVE_JSON_KEYS and item not in (None, ""):
+            return path, f"敏感字段: {key}"
+        if not isinstance(item, (str, int, float)):
+            continue
+        text = str(item)
+        for pattern in FORBIDDEN_PATTERNS:
+            match = pattern.search(text)
+            if match:
+                return path, match.group(0)[:60]
+    return None
+
+
 # ── 经验库 schema 校验 ─────────────────────────────────────────────
 
 def check_exp_schema(exp_dir: Path, report: Report) -> None:
@@ -364,11 +395,10 @@ def check_exp_schema(exp_dir: Path, report: Report) -> None:
                     report.error("经验库", f"{jsonl_file.name}:{i} 多余字段: {extra}", "")
 
                 # 凭据扫描
-                content_str = json.dumps(record, ensure_ascii=False)
-                for pattern in FORBIDDEN_PATTERNS:
-                    if pattern.search(content_str):
-                        report.error("经验库", f"{jsonl_file.name}:{i} 包含禁止内容", pattern.pattern[:40])
-                        break
+                forbidden = _find_forbidden_json_content(record)
+                if forbidden:
+                    path, detail = forbidden
+                    report.error("经验库", f"{jsonl_file.name}:{i} 包含禁止内容: {path}", detail)
 
             if line_count > 0:
                 report.ok("经验库", f"{jsonl_file.name} — {line_count} 条记录，schema 通过", str(jsonl_file))

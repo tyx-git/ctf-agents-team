@@ -1,3 +1,24 @@
+---
+title: "CTF Misc - Blockchain / Smart Contract Security"
+categories:
+  - misc
+  - crypto
+topics:
+  - "blockchain"
+  - "smart contract"
+  - "EVM"
+  - "Solidity"
+  - "reentrancy"
+signals:
+  - ".sol"
+  - "Solidity"
+  - "EVM"
+  - "contract"
+  - "reentrancy"
+  - "web3"
+  - "DeFi"
+load_when: "题目出现智能合约、Solidity、EVM、链上交互或重入/存储漏洞。"
+---
 # CTF Misc - Blockchain / Smart Contract Security
 
 > **适用版本**: Solidity 0.8.x, Foundry (forge/cast/anvil), Hardhat, Python web3.py 6.x+

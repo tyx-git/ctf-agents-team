@@ -1,3 +1,24 @@
+---
+title: "Linux Privilege Escalation and Service Exploitation"
+categories:
+  - pwn
+  - misc
+topics:
+  - "linux privesc"
+  - "sudo"
+  - "cron"
+  - "SUID"
+  - "NFS"
+  - "service exploit"
+signals:
+  - "sudo"
+  - "SUID"
+  - "cron"
+  - "NFS"
+  - "capability"
+  - "privilege escalation"
+load_when: "题目涉及 Linux 提权、SUID、sudo、cron、NFS 或服务配置漏洞。"
+---
 # Linux Privilege Escalation and Service Exploitation
 
 > **适用版本**: Linux kernel 4.x-6.x, sudo, systemd, PostgreSQL, NFS

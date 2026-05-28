@@ -1,3 +1,24 @@
+---
+title: "CTF Misc - Advanced Encodings & Specialized Formats"
+categories:
+  - misc
+  - crypto
+topics:
+  - "Verilog"
+  - "Gray code"
+  - "RTF"
+  - "SMS PDU"
+  - "MaxiCode"
+  - "special formats"
+signals:
+  - "verilog"
+  - "gray code"
+  - "RTF"
+  - "SMS PDU"
+  - "MaxiCode"
+  - "barcode"
+load_when: "编码题出现专用格式、硬件描述、条码、短信 PDU 或非常规编码。"
+---
 # CTF Misc - Advanced Encodings & Specialized Formats
 
 > **适用版本**: Python 3.8+, Verilog tools, RTF parsers

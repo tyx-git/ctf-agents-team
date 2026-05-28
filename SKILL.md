@@ -121,71 +121,21 @@ find $COMPETITION_DIR -mindepth 2 -maxdepth 2 -type d | sort
 
 ### Phase 1.5: Solo 模式调度 (Solo Dispatch)
 
-**仅在 Solo 模式下执行。** Phase 1 扫描完成后，自动启动并行解题。
+**仅在 Solo 模式下执行。** Phase 1 扫描完成后，先用脚本生成 dispatch 计划，再并行启动品类 Agent。
 
-**Step 1 — 题目发现与分组**：
-
-标准品类列表（固定顺序）：`web`, `pwn`, `re`, `misc`, `crypto`, `forensics`, `mobile`
-
-> **别名映射**: `reverse/` 目录视为 `re` 品类，大小写不敏感（如 `Web/` 自动映射到 `web`）。
-
-**强制检查流程**（逐品类执行）：
 ```bash
-# 对每个标准品类，检查目录是否存在且包含至少一个子目录
-for category in web pwn re misc crypto forensics mobile; do
-  # 同时检查别名目录 (如 reverse → re, 大小写变体 Web → web)
-  target_dir=""
-  if [ -d "$COMPETITION_DIR/$category" ]; then
-    target_dir="$COMPETITION_DIR/$category"
-  elif [ "$category" = "re" ] && [ -d "$COMPETITION_DIR/reverse" ]; then
-    target_dir="$COMPETITION_DIR/reverse"
-  fi
-  # 大小写兼容：转小写后比较，再检查首字母大写变体（兼容 ALL_CAPS）
-  if [ -z "$target_dir" ]; then
-    cap_category="$(echo "$category" | sed 's/^./\U&/')"
-    [ -d "$COMPETITION_DIR/$cap_category" ] && target_dir="$COMPETITION_DIR/$cap_category"
-  fi
-  if [ -z "$target_dir" ]; then
-    upper_category="$(echo "$category" | tr '[:lower:]' '[:upper:]')"
-    [ -d "$COMPETITION_DIR/$upper_category" ] && target_dir="$COMPETITION_DIR/$upper_category"
-  fi
-
-  # 仅当目录存在且包含子目录时才纳入
-  if [ -n "$target_dir" ] && ls -d "$target_dir"/*/ 2>/dev/null | head -1 > /dev/null; then
-    echo "✓ $category: $target_dir"
-  fi
-done
+python3 .skills/ctf-agents-team/scripts/DispatchPlan.py $COMPETITION_DIR --exp-dir .skills/ctf-agents-team/exp --json
 ```
 
-**检查结果记录**：在 task_plan.md 中明确记录：
-- ✓ 有题目的品类 → 纳入 dispatch 列表
-- ✗ 目录不存在或无题目的品类 → 跳过，记录原因
+脚本负责：
+- 识别标准品类：`web`, `pwn`, `re`, `misc`, `crypto`, `forensics`, `mobile`
+- 处理大小写兼容和 `reverse/` → `re` 别名
+- 跳过已有有效 `flag.found` 的题目
+- 按经验库命中、附件完整度、目录大小排序
+- 执行 Dispatch Gate：目录存在 + 有未解题 + `flag.found` 不存在/无效
+- 每 5 题切分一个 Agent，并计算 `time_budget_min = min(题目数 × 45, 180)`
 
-将发现的题目按品类分组。品类目录名大小写兼容（`Web` = `web` = `WEB`），统一映射到小写标准名。
-
-**跳过已解题目**：若题目目录内已存在 `flag.found` 且 `TIMESTAMP` 字段有效，视为 `solved`，不再重复分发。若 `flag.found` 不存在，无论目录是否存在 `题目名称.md` 均按 `enumerated` 重新处理。
-
-**⚠️ 大小写不敏感匹配**：判断 `flag.found`、`题目名称.md` 等文件是否存在时，路径比较统一转换为小写后判断（如 `BABYREV` 与 `babyrev` 视为同一题目）。题目名在 flag.log 和经验库中保留原始大小写。
-
-**Step 2 — 优先级排序**：
-
-在 task_plan.md 中按以下规则对品类内题目排序：
-1. 经验库命中（`exp/` 中有类似题记录）→ 优先
-2. 附件完整度（有附件 > 仅有描述 > 仅有 URL）→ 优先
-3. 题目目录大小（小文件通常更简单）→ 优先
-
-**Step 3 — 按品类并行 dispatch**：
-
-**⚠️ Dispatch Gate（强制前置条件）**：
-
-仅对满足以下 **全部** 条件的品类启动 Agent：
-1. 品类目录存在（Step 1 检查通过，标记为 ✓）
-2. 品类目录下至少有 1 个**未解**题目子目录
-3. 未解题目 = 目录内不存在 `flag.found`（或 `flag.found` 中 TIMESTAMP 无效）
-
-**不满足条件的品类一律跳过，不启动 Agent。**
-
-对每个通过 Gate 的品类启动一个 Agent，使用 Claude Code 的 Agent tool 并行调度：
+Lead Agent 将脚本 JSON 输出写入/同步到 `task_plan.md`，只对 `dispatch_agents[]` 中的批次启动 Agent。
 
 **团队上下文约束**：
 - 并行调度前优先复用当前会话的团队上下文；如果已经是 team leader（例如已在 `default` team），不要再次创建新团队。
@@ -193,50 +143,29 @@ done
 - 若系统提示 `Already leading team "default"`，说明重复创建团队；此时直接复用现有团队继续分发。
 - 只有在明确结束上一轮并行批次后，才先 `TeamDelete` 再重新 `TeamCreate`。
 
-
-├── Agent (web):       web/题目A → web/题目B → web/题目C
-├── Agent (pwn):       pwn/题目X → pwn/题目Y
-├── Agent (misc):      misc/题目M → misc/题目N → misc/题目O
-└── Agent (re):        re/题目R → re/题目S
-```
-
-**单 Agent 题目数量上限**: 单个品类 Agent 最多处理 **5 道题**。超过 5 道题的品类拆分为多个 Agent（如 web-agent-1, web-agent-2），每个 Agent 分配不超过 5 道题。
-
 **品类 Agent 的职责**：
-- 获得该品类下所有题目的完整解题自主权（Phase 2→6）
+- 获得该批次题目的完整解题自主权（Phase 2→6）
 - 按优先级顺序逐题作答（品类内串行）
-- 每道题独立创建 `wp.process`、`题目名称.md`，可脚本化的题创建 `exploit.py`
-- 发现 flag 后写入该题目录下的 `flag.found` 中间文件（三行格式，见下方规范）
-- **⚠️ 子 Agent 不直接写 `flag.log`** — 仅 Lead Agent 有权写入比赛根目录的 `flag.log`
-- 解完一题后，若有可复用经验则写入题目目录下的 `exp_candidate.jsonl`（非直接追加到 exp/）
-- 遵守时间管理规则：简单题 ≤30min, 中等题 ≤60min, 困难题 ≤90min
-- **品类 Agent 总时间预算**: min(题目数 × 45min, 180min)，超时后停止当前题目，返回已完成的结果
-- **⚠️ 系统超时约束**: Claude Code Agent tool 有系统级超时限制（不可配置），若系统超时先于预算耗尽，Agent 会被强制终止。因此每题 verified 后必须立即交付，确保部分成果不丢失。
-- 遵守 3-Strike Protocol：同一题卡住 3 次后停止该题（状态保持 `in_progress`，在 wp.process 标注 blocker），继续下一题
+- 每题独立创建 `wp.process`、`题目名称.md`，可脚本化的题创建 `exploit.py`
+- 发现 flag 后写入该题目录下的 `flag.found` 中间文件（三行格式）
+- **子 Agent 不直接写 `flag.log`** — 仅 Lead Agent 汇总
+- 解完一题后，若有可复用经验则写入题目目录下的 `exp_candidate.jsonl`
+- 遵守时间管理与 3-Strike Protocol
 
-**flag.found 格式规范**（子 Agent 解出 flag 后必须在题目目录根创建）：
+**flag.found 格式规范**：
 ```
 FLAG: flag{example_flag_here}
 STATUS: solved
 TIMESTAMP: 2026-05-21T14:30:00Z
 ```
-- `FLAG`：提取的 flag 原文
-- `STATUS`：固定为 `solved`
-- `TIMESTAMP`：ISO 8601 UTC 时间，精确到秒，代表解出时刻
-- 若解题失败或超时，**不生成** `flag.found`
 
-**exp_candidate.jsonl 规范**（子 Agent 产出经验候选）：
-- 写入位置：题目目录内的 `exp_candidate.jsonl`（非 exp/ 目录）
-- 每行一条完整 JSON 记录，格式遵循经验库标准 schema
-- **⚠️ 凭据过滤**：禁止写入任何包含 `token`、`api_key`、`session`、`authorization`、`cookie`、`password` 等字段的内容。CTFd Token 等凭据仅允许保留在 `findings.md` 中本地使用，不得进入经验库。
-- Lead Agent 负责最终合并到 `exp/[品类]/[品类].jsonl` 并清理候选文件
+**exp_candidate.jsonl 规范**：
+- 写入位置：题目目录内的 `exp_candidate.jsonl`
+- 每行一条完整 JSON 记录，格式遵循经验库 schema
+- 禁止写入 `token`、`api_key`、`session`、`authorization`、`cookie`、`password` 等凭据
+- Lead Agent 最终通过 `AddExp.py --commit` 合并并用 `ClearExp.py` 清理
 
 **品类 Agent Prompt 模板**见 [orchestrator-playbook.md](references/orchestrator-playbook.md) §Solo 品类 Agent Prompt。
-
-启动每个品类 Agent **前**，Lead Agent **必须**：
-- 根据该品类题目列表计算总时间预算：`min(题目数 × 45min, 180min)`
-- 将该值填入 Agent prompt 模板的 `总时间预算` 字段
-- 确认 prompt 中无残留占位符（如 `[由 Lead Agent 计算填入]`）后再 dispatch
 
 **Step 4 — Lead Agent 监控与汇总**：
 
@@ -253,13 +182,19 @@ TIMESTAMP: 2026-05-21T14:30:00Z
 
 **⚠️ 不重试整个品类 Agent**（成本太高且可能重复已完成工作），由用户决定后续处理。
 
-**4.2 flag.log 汇总**（Lead Agent 唯一写者）：
+**4.2 flag.log 汇总**（Lead Agent 唯一写者）
 
-Lead Agent 扫描所有题目目录下的 `flag.found` 文件，按以下规则写入 `flag.log`：
-1. **新题加入**：若题目对应的 flag 未在 `flag.log` 中出现，追加记录
-2. **已存在题目**：`flag.log` 中已有该题记录时，**不覆盖**
-3. **多份 flag.found 冲突**：同一题目目录下有多个 `flag.found`（如重复调度），以最后修改时间（mtime）最新者为准
-4. 汇总完成后更新 `task_plan.md` 中对应题目状态为 `verified`
+所有品类 Agent 返回后，使用脚本扫描并汇总 `flag.found`：
+
+```bash
+python3 .skills/ctf-agents-team/scripts/CollectFlags.py $COMPETITION_DIR --json
+```
+
+脚本负责校验三行格式、跳过已有 `flag.log` 记录、冲突时取最新 mtime，并输出追加/跳过/无效摘要。汇总完成后用 `status.py` 查看状态：
+
+```bash
+python3 .skills/ctf-agents-team/scripts/status.py $COMPETITION_DIR --json
+```
 
 **4.2.1 工程校验**（汇总**后**执行）：
 ```bash
@@ -795,6 +730,9 @@ exp/
 - [references/classification-matrix.md](references/classification-matrix.md) — 分类决策矩阵与时间管理
 
 ### Knowledge Base（按需加载的深度技术文档）
+
+先读取轻量索引 [knowledge/index.json](knowledge/index.json)，按 `signals` / `categories` / `load_when` 选择需要加载的知识文件；不要一次性读取整个 `knowledge/` 目录。
+
 - [knowledge/pyjails.md](knowledge/pyjails.md) — Python jail 逃逸
 - [knowledge/bashjails.md](knowledge/bashjails.md) — Bash jail 逃逸
 - [knowledge/encodings.md](knowledge/encodings.md) — 编码与 QR
@@ -810,6 +748,8 @@ exp/
 - [knowledge/blockchain.md](knowledge/blockchain.md) — Blockchain/Smart Contract 安全
 - [knowledge/ai-security.md](knowledge/ai-security.md) — AI/ML 安全 (对抗样本/模型逆向/Prompt Injection)
 - [knowledge/lattice-crypto.md](knowledge/lattice-crypto.md) — 格密码 (LLL/Coppersmith/HNP/Knapsack)
+- [knowledge/docker-escape.md](knowledge/docker-escape.md) — Docker/Container 逃逸
+- [knowledge/kernel-pwn.md](knowledge/kernel-pwn.md) — Linux Kernel Pwn
 
 ---
 

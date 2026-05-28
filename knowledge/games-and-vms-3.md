@@ -1,3 +1,21 @@
+---
+title: "CTF Misc - Games, VMs & Constraint Solving Part 3"
+categories:
+  - misc
+  - pwn
+topics:
+  - "docker escape"
+  - "taint bypass"
+  - "memfd"
+  - "shred"
+signals:
+  - "memfd"
+  - "shred"
+  - "taint"
+  - "docker"
+  - "container escape"
+load_when: "题目涉及容器、污点绕过、memfd、文件粉碎或系统级逃逸。"
+---
 # CTF Misc - Games, VMs & Constraint Solving (Part 3)
 
 > **适用版本**: Python 3.8+, Docker

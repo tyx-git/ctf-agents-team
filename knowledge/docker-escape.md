@@ -1,3 +1,25 @@
+---
+title: "CTF Misc - Docker / Container Escape"
+categories:
+  - misc
+  - pwn
+topics:
+  - "docker escape"
+  - "container"
+  - "capabilities"
+  - "namespace"
+  - "cgroup"
+  - "runc"
+signals:
+  - "docker"
+  - "container"
+  - "cap_sys_admin"
+  - "namespace"
+  - "cgroup"
+  - "runc"
+  - "/proc/1"
+load_when: "题目在容器内运行并出现 capability、namespace、cgroup、挂载或 Docker 逃逸线索。"
+---
 # CTF Misc — Docker / Container Escape 技术手册
 
 > **适用版本**: Docker Engine 24.x+, containerd 1.6+, runc 1.x, Linux 5.x/6.x

@@ -1,3 +1,23 @@
+---
+title: "CTF Misc - Bash Jails & Restricted Shells"
+categories:
+  - misc
+  - web
+topics:
+  - "bash jail"
+  - "restricted shell"
+  - "command bypass"
+  - "shell escaping"
+signals:
+  - "bash"
+  - "rbash"
+  - "restricted shell"
+  - "command filter"
+  - "IFS"
+  - "PATH"
+  - "wildcard"
+load_when: "题目出现 Bash jail、受限 shell、命令过滤或 shell 字符绕过。"
+---
 # CTF Misc - Bash Jails & Restricted Shells
 
 > **适用版本**: Bash 4.x/5.x, sh, dash

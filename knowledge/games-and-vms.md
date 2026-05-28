@@ -1,3 +1,23 @@
+---
+title: "CTF Misc - Games, VMs & Constraint Solving Part 1"
+categories:
+  - misc
+  - reverse
+topics:
+  - "game hacking"
+  - "VM"
+  - "WASM"
+  - "Z3"
+  - "constraint solving"
+signals:
+  - "wasm"
+  - "vm"
+  - "z3"
+  - "constraint"
+  - "game"
+  - "maze"
+load_when: "题目涉及游戏逻辑、VM、WASM 或约束求解的基础部分。"
+---
 # CTF Misc - Games, VMs & Constraint Solving (Part 1)
 
 > **适用版本**: Python 3.8+, z3-solver, WASM tools

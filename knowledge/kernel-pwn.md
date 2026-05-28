@@ -1,3 +1,23 @@
+---
+title: "CTF Pwn - Linux Kernel Exploitation"
+categories:
+  - pwn
+topics:
+  - "kernel pwn"
+  - "LKM"
+  - "UAF"
+  - "tty_struct"
+  - "BPF JIT"
+signals:
+  - "kernel"
+  - "LKM"
+  - "ko"
+  - "tty_struct"
+  - "BPF"
+  - "modprobe_path"
+  - "/dev/"
+load_when: "Pwn 题涉及 Linux kernel、驱动模块、/dev 设备、BPF 或内核 UAF。"
+---
 # CTF Pwn — Linux Kernel Exploitation
 
 > **适用版本**: Linux 5.x/6.x, QEMU, gcc, busybox

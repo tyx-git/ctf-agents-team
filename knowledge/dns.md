@@ -1,3 +1,25 @@
+---
+title: "CTF Misc - DNS Exploitation Techniques"
+categories:
+  - misc
+  - web
+  - forensics
+topics:
+  - "DNS"
+  - "zone transfer"
+  - "DNS tunnel"
+  - "rebinding"
+  - "ECS"
+signals:
+  - "dns"
+  - "dig"
+  - "nslookup"
+  - "zone transfer"
+  - "AXFR"
+  - "rebinding"
+  - "tunnel"
+load_when: "题目涉及 DNS 记录、域传送、DNS 隧道、重绑定或流量分析。"
+---
 # CTF Misc - DNS Exploitation Techniques
 
 > **适用版本**: dig/nslookup, Python dnspython, tshark

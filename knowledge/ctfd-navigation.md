@@ -1,3 +1,20 @@
+---
+title: "CTFd Platform Navigation"
+categories:
+  - web
+  - misc
+topics:
+  - "CTFd API"
+  - "challenge listing"
+  - "attachments"
+  - "flag submission"
+signals:
+  - "CTFd"
+  - "/api/v1/challenges"
+  - "ctfd token"
+  - "challenge_id"
+load_when: "需要通过 CTFd API 获取题目、下载附件或提交 flag。"
+---
 # CTFd Platform Navigation (No Browser)
 
 > **适用版本**: CTFd 3.x, Python requests/httpx

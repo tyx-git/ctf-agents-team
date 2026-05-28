@@ -1,0 +1,414 @@
+[
+  {
+    "file": "ai-security.md",
+    "title": "CTF Misc - AI / ML Security",
+    "categories": [
+      "misc"
+    ],
+    "topics": [
+      "AI security",
+      "ML model",
+      "adversarial examples",
+      "pickle RCE",
+      "prompt injection"
+    ],
+    "signals": [
+      ".pt",
+      ".pkl",
+      ".h5",
+      ".onnx",
+      "model",
+      "classify",
+      "adversarial",
+      "prompt injection",
+      "pickle"
+    ],
+    "load_when": "题目出现 AI/ML 模型、对抗样本、模型逆向、pickle 反序列化或 Prompt Injection。"
+  },
+  {
+    "file": "bashjails.md",
+    "title": "CTF Misc - Bash Jails & Restricted Shells",
+    "categories": [
+      "misc",
+      "web"
+    ],
+    "topics": [
+      "bash jail",
+      "restricted shell",
+      "command bypass",
+      "shell escaping"
+    ],
+    "signals": [
+      "bash",
+      "rbash",
+      "restricted shell",
+      "command filter",
+      "IFS",
+      "PATH",
+      "wildcard"
+    ],
+    "load_when": "题目出现 Bash jail、受限 shell、命令过滤或 shell 字符绕过。"
+  },
+  {
+    "file": "blockchain.md",
+    "title": "CTF Misc - Blockchain / Smart Contract Security",
+    "categories": [
+      "misc",
+      "crypto"
+    ],
+    "topics": [
+      "blockchain",
+      "smart contract",
+      "EVM",
+      "Solidity",
+      "reentrancy"
+    ],
+    "signals": [
+      ".sol",
+      "Solidity",
+      "EVM",
+      "contract",
+      "reentrancy",
+      "web3",
+      "DeFi"
+    ],
+    "load_when": "题目出现智能合约、Solidity、EVM、链上交互或重入/存储漏洞。"
+  },
+  {
+    "file": "ctfd-navigation.md",
+    "title": "CTFd Platform Navigation",
+    "categories": [
+      "web",
+      "misc"
+    ],
+    "topics": [
+      "CTFd API",
+      "challenge listing",
+      "attachments",
+      "flag submission"
+    ],
+    "signals": [
+      "CTFd",
+      "/api/v1/challenges",
+      "ctfd token",
+      "challenge_id"
+    ],
+    "load_when": "需要通过 CTFd API 获取题目、下载附件或提交 flag。"
+  },
+  {
+    "file": "dns.md",
+    "title": "CTF Misc - DNS Exploitation Techniques",
+    "categories": [
+      "misc",
+      "web",
+      "forensics"
+    ],
+    "topics": [
+      "DNS",
+      "zone transfer",
+      "DNS tunnel",
+      "rebinding",
+      "ECS"
+    ],
+    "signals": [
+      "dns",
+      "dig",
+      "nslookup",
+      "zone transfer",
+      "AXFR",
+      "rebinding",
+      "tunnel"
+    ],
+    "load_when": "题目涉及 DNS 记录、域传送、DNS 隧道、重绑定或流量分析。"
+  },
+  {
+    "file": "docker-escape.md",
+    "title": "CTF Misc - Docker / Container Escape",
+    "categories": [
+      "misc",
+      "pwn"
+    ],
+    "topics": [
+      "docker escape",
+      "container",
+      "capabilities",
+      "namespace",
+      "cgroup",
+      "runc"
+    ],
+    "signals": [
+      "docker",
+      "container",
+      "cap_sys_admin",
+      "namespace",
+      "cgroup",
+      "runc",
+      "/proc/1"
+    ],
+    "load_when": "题目在容器内运行并出现 capability、namespace、cgroup、挂载或 Docker 逃逸线索。"
+  },
+  {
+    "file": "encodings-advanced.md",
+    "title": "CTF Misc - Advanced Encodings & Specialized Formats",
+    "categories": [
+      "misc",
+      "crypto"
+    ],
+    "topics": [
+      "Verilog",
+      "Gray code",
+      "RTF",
+      "SMS PDU",
+      "MaxiCode",
+      "special formats"
+    ],
+    "signals": [
+      "verilog",
+      "gray code",
+      "RTF",
+      "SMS PDU",
+      "MaxiCode",
+      "barcode"
+    ],
+    "load_when": "编码题出现专用格式、硬件描述、条码、短信 PDU 或非常规编码。"
+  },
+  {
+    "file": "encodings.md",
+    "title": "CTF Misc - Encodings & Media",
+    "categories": [
+      "misc"
+    ],
+    "topics": [
+      "encoding",
+      "QR",
+      "esolang",
+      "media",
+      "base conversion"
+    ],
+    "signals": [
+      "base64",
+      "hex",
+      "QR",
+      "brainfuck",
+      "morse",
+      "stego",
+      "audio",
+      "image"
+    ],
+    "load_when": "题目出现多层编码、二维码、esolang、图片/音频隐写或格式转换。"
+  },
+  {
+    "file": "games-and-vms.md",
+    "title": "CTF Misc - Games, VMs & Constraint Solving Part 1",
+    "categories": [
+      "misc",
+      "reverse"
+    ],
+    "topics": [
+      "game hacking",
+      "VM",
+      "WASM",
+      "Z3",
+      "constraint solving"
+    ],
+    "signals": [
+      "wasm",
+      "vm",
+      "z3",
+      "constraint",
+      "game",
+      "maze"
+    ],
+    "load_when": "题目涉及游戏逻辑、VM、WASM 或约束求解的基础部分。"
+  },
+  {
+    "file": "games-and-vms-2.md",
+    "title": "CTF Misc - Games, VMs & Constraint Solving Part 2",
+    "categories": [
+      "misc",
+      "web"
+    ],
+    "topics": [
+      "cookie brute",
+      "WebSocket",
+      "De Bruijn",
+      "brainfuck"
+    ],
+    "signals": [
+      "cookie",
+      "websocket",
+      "de bruijn",
+      "BF",
+      "bruteforce"
+    ],
+    "load_when": "题目涉及 Cookie 爆破、WebSocket 交互、De Bruijn 或 BF 类逻辑。"
+  },
+  {
+    "file": "games-and-vms-3.md",
+    "title": "CTF Misc - Games, VMs & Constraint Solving Part 3",
+    "categories": [
+      "misc",
+      "pwn"
+    ],
+    "topics": [
+      "docker escape",
+      "taint bypass",
+      "memfd",
+      "shred"
+    ],
+    "signals": [
+      "memfd",
+      "shred",
+      "taint",
+      "docker",
+      "container escape"
+    ],
+    "load_when": "题目涉及容器、污点绕过、memfd、文件粉碎或系统级逃逸。"
+  },
+  {
+    "file": "games-and-vms-4.md",
+    "title": "CTF Misc - Games, VMs & Constraint Solving Part 4",
+    "categories": [
+      "misc",
+      "web"
+    ],
+    "topics": [
+      "XSLT",
+      "JavaScript tricks",
+      "OEIS",
+      "bytebeat"
+    ],
+    "signals": [
+      "XSLT",
+      "xsltproc",
+      "OEIS",
+      "bytebeat",
+      "javascript trick"
+    ],
+    "load_when": "题目涉及 XSLT、奇技淫巧 JS、数列识别或 bytebeat。"
+  },
+  {
+    "file": "kernel-pwn.md",
+    "title": "CTF Pwn - Linux Kernel Exploitation",
+    "categories": [
+      "pwn"
+    ],
+    "topics": [
+      "kernel pwn",
+      "LKM",
+      "UAF",
+      "tty_struct",
+      "BPF JIT"
+    ],
+    "signals": [
+      "kernel",
+      "LKM",
+      "ko",
+      "tty_struct",
+      "BPF",
+      "modprobe_path",
+      "/dev/"
+    ],
+    "load_when": "Pwn 题涉及 Linux kernel、驱动模块、/dev 设备、BPF 或内核 UAF。"
+  },
+  {
+    "file": "lattice-crypto.md",
+    "title": "CTF Crypto - Lattice Cryptanalysis",
+    "categories": [
+      "crypto"
+    ],
+    "topics": [
+      "lattice",
+      "LLL",
+      "Coppersmith",
+      "HNP",
+      "knapsack"
+    ],
+    "signals": [
+      "LLL",
+      "Coppersmith",
+      "small root",
+      "HNP",
+      "nonce leak",
+      "knapsack",
+      "partial key"
+    ],
+    "load_when": "Crypto 题出现格密码、小根、偏置 nonce、部分密钥泄露或背包问题。"
+  },
+  {
+    "file": "linux-privesc.md",
+    "title": "Linux Privilege Escalation and Service Exploitation",
+    "categories": [
+      "pwn",
+      "misc"
+    ],
+    "topics": [
+      "linux privesc",
+      "sudo",
+      "cron",
+      "SUID",
+      "NFS",
+      "service exploit"
+    ],
+    "signals": [
+      "sudo",
+      "SUID",
+      "cron",
+      "NFS",
+      "capability",
+      "privilege escalation"
+    ],
+    "load_when": "题目涉及 Linux 提权、SUID、sudo、cron、NFS 或服务配置漏洞。"
+  },
+  {
+    "file": "pyjails.md",
+    "title": "CTF Misc - Python Jails",
+    "categories": [
+      "misc",
+      "web"
+    ],
+    "topics": [
+      "python jail",
+      "sandbox",
+      "eval",
+      "exec",
+      "builtins bypass"
+    ],
+    "signals": [
+      "python jail",
+      "sandbox",
+      "eval",
+      "exec",
+      "__builtins__",
+      "__subclasses__",
+      "pickle"
+    ],
+    "load_when": "题目出现 Python 沙箱、eval/exec 限制、内置函数过滤或对象链绕过。"
+  },
+  {
+    "file": "rf-sdr.md",
+    "title": "CTF Misc - RF / SDR / IQ Signal Processing",
+    "categories": [
+      "misc",
+      "forensics"
+    ],
+    "topics": [
+      "RF",
+      "SDR",
+      "IQ",
+      "QAM",
+      "signal processing"
+    ],
+    "signals": [
+      "iq",
+      "sdr",
+      "rf",
+      "qam",
+      "fm",
+      "am",
+      "wav",
+      "signal"
+    ],
+    "load_when": "题目涉及 RF/SDR/IQ 文件、调制解调、频谱或信号处理。"
+  }
+]

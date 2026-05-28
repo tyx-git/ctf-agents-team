@@ -1,3 +1,24 @@
+---
+title: "CTF Misc - Python Jails"
+categories:
+  - misc
+  - web
+topics:
+  - "python jail"
+  - "sandbox"
+  - "eval"
+  - "exec"
+  - "builtins bypass"
+signals:
+  - "python jail"
+  - "sandbox"
+  - "eval"
+  - "exec"
+  - "__builtins__"
+  - "__subclasses__"
+  - "pickle"
+load_when: "题目出现 Python 沙箱、eval/exec 限制、内置函数过滤或对象链绕过。"
+---
 # CTF Misc - Python Jails
 
 > **适用版本**: Python 2.7, 3.6-3.12

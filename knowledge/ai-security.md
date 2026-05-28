@@ -1,3 +1,25 @@
+---
+title: "CTF Misc - AI / ML Security"
+categories:
+  - misc
+topics:
+  - "AI security"
+  - "ML model"
+  - "adversarial examples"
+  - "pickle RCE"
+  - "prompt injection"
+signals:
+  - ".pt"
+  - ".pkl"
+  - ".h5"
+  - ".onnx"
+  - "model"
+  - "classify"
+  - "adversarial"
+  - "prompt injection"
+  - "pickle"
+load_when: "题目出现 AI/ML 模型、对抗样本、模型逆向、pickle 反序列化或 Prompt Injection。"
+---
 # CTF Misc - AI / ML Security
 
 > **适用版本**: Python 3.8+, PyTorch 1.x/2.x, TensorFlow 2.x, scikit-learn, numpy

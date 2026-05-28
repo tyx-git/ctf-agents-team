@@ -1,3 +1,21 @@
+---
+title: "CTF Misc - Games, VMs & Constraint Solving Part 2"
+categories:
+  - misc
+  - web
+topics:
+  - "cookie brute"
+  - "WebSocket"
+  - "De Bruijn"
+  - "brainfuck"
+signals:
+  - "cookie"
+  - "websocket"
+  - "de bruijn"
+  - "BF"
+  - "bruteforce"
+load_when: "题目涉及 Cookie 爆破、WebSocket 交互、De Bruijn 或 BF 类逻辑。"
+---
 # CTF Misc - Games, VMs & Constraint Solving (Part 2)
 
 > **适用版本**: Python 3.8+
