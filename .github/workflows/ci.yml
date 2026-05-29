@@ -14,45 +14,100 @@ jobs:
 
       - name: Validate SKILL.md frontmatter
         run: |
-          head -10 SKILL.md | grep -q '^name:' || (echo "FAIL: SKILL.md missing name in frontmatter" && exit 1)
-          head -10 SKILL.md | grep -q '^description:' || (echo "FAIL: SKILL.md missing description" && exit 1)
-          echo "SKILL.md frontmatter OK"
+          python3 - << 'PY'
+          from pathlib import Path
+          text = Path('SKILL.md').read_text(encoding='utf-8')
+          if not text.startswith('---\n'):
+              raise SystemExit('FAIL: SKILL.md missing YAML frontmatter')
+          head = text.split('---\n', 2)[1]
+          for key in ('name:', 'description:'):
+              if key not in head:
+                  raise SystemExit(f'FAIL: SKILL.md frontmatter missing {key}')
+          print('SKILL.md frontmatter OK')
+          PY
 
-      - name: Validate all referenced files exist
+      - name: Validate referenced files exist
         run: |
-          EXIT=0
-          # Extract markdown links from SKILL.md
-          grep -oP '\[.*?\]\((references/[^)]+|knowledge/[^)]+)\)' SKILL.md | \
-            grep -oP '\((.*?)\)' | tr -d '()' | sort -u | while read -r f; do
-              if [ ! -f "$f" ]; then
-                echo "FAIL: SKILL.md references '$f' but file does not exist"
-                EXIT=1
-              fi
-            done
-          # Check references/ links to knowledge/
-          for ref in references/*.md; do
-            grep -oP '\((\.\.\/knowledge\/[^)]+)\)' "$ref" | tr -d '()' | \
-              sed 's|^\.\./||' | while read -r f; do
-                if [ ! -f "$f" ]; then
-                  echo "FAIL: $ref references '$f' but file does not exist"
-                  EXIT=1
-                fi
-              done
-          done
-          exit $EXIT
+          python3 - << 'PY'
+          from pathlib import Path
+          import re, sys
 
-      - name: Check knowledge file count matches index
+          errors = 0
+          files = [Path('SKILL.md'), *Path('references').glob('*.md'), *Path('knowledge').glob('*.md')]
+          for md in files:
+              text = md.read_text(encoding='utf-8')
+              for link in re.findall(r'\]\(([^)]+)\)', text):
+                  if link.startswith(('http://', 'https://', '#')):
+                      continue
+                  target = (md.parent / link).resolve()
+                  root_target = Path(link).resolve()
+                  if not target.exists() and not root_target.exists():
+                      print(f'FAIL: {md} references missing file: {link}')
+                      errors += 1
+          if errors:
+              sys.exit(1)
+          print('Referenced files OK')
+          PY
+
+      - name: Validate knowledge index and frontmatter
         run: |
-          ACTUAL=$(ls knowledge/*.md | wc -l)
-          INDEXED=$(grep -c 'knowledge/' SKILL.md | head -1 || echo 0)
-          echo "Knowledge files on disk: $ACTUAL"
-          echo "Knowledge entries in SKILL.md index: $INDEXED"
-          for f in knowledge/*.md; do
-            basename="$(basename "$f")"
-            if ! grep -q "$basename" SKILL.md; then
-              echo "WARN: $f not listed in SKILL.md index"
-            fi
-          done
+          python3 - << 'PY'
+          from pathlib import Path
+          import json, sys
+
+          index_path = Path('knowledge/index.json')
+          if not index_path.is_file():
+              raise SystemExit('FAIL: missing knowledge/index.json')
+          index = json.loads(index_path.read_text(encoding='utf-8'))
+          if not isinstance(index, list):
+              raise SystemExit('FAIL: knowledge/index.json must be a list')
+
+          md_files = {p.name for p in Path('knowledge').glob('*.md')}
+          indexed = set()
+          required = {'file', 'title', 'categories', 'topics', 'signals', 'load_when'}
+          errors = 0
+
+          for i, item in enumerate(index):
+              if not isinstance(item, dict):
+                  print(f'FAIL: index[{i}] is not object')
+                  errors += 1
+                  continue
+              missing = required - set(item)
+              if missing:
+                  print(f'FAIL: index[{i}] missing keys: {sorted(missing)}')
+                  errors += 1
+              file_name = item.get('file')
+              if file_name not in md_files:
+                  print(f'FAIL: index[{i}] file not found: {file_name}')
+                  errors += 1
+              else:
+                  indexed.add(file_name)
+              for key in ('categories', 'topics', 'signals'):
+                  if not isinstance(item.get(key), list) or not item.get(key):
+                      print(f'FAIL: index[{i}].{key} must be non-empty list')
+                      errors += 1
+
+          missing_from_index = md_files - indexed
+          if missing_from_index:
+              print(f'FAIL: markdown files missing from knowledge/index.json: {sorted(missing_from_index)}')
+              errors += 1
+
+          for md in sorted(Path('knowledge').glob('*.md')):
+              text = md.read_text(encoding='utf-8')
+              if not text.startswith('---\n'):
+                  print(f'FAIL: {md} missing YAML frontmatter')
+                  errors += 1
+                  continue
+              fm = text.split('---\n', 2)[1]
+              for key in ('title:', 'categories:', 'topics:', 'signals:', 'load_when:'):
+                  if key not in fm:
+                      print(f'FAIL: {md} frontmatter missing {key}')
+                      errors += 1
+
+          if errors:
+              sys.exit(1)
+          print(f'Knowledge index OK: {len(index)} entries')
+          PY
 
       - name: Validate reference files have consistent structure
         run: |
@@ -63,7 +118,6 @@ jobs:
               echo "FAIL: Missing specialist reference: $ref"
               exit 1
             fi
-            # Check required sections
             for section in "Mission" "When Selected" "First Pass" "Escalation"; do
               if ! grep -q "## $section\|## .*$section" "$ref"; then
                 echo "WARN: $ref missing section '$section'"
@@ -72,32 +126,51 @@ jobs:
           done
           echo "Reference structure validation OK"
 
-      - name: Check for broken internal links
+      - name: Validate Python scripts syntax
         run: |
-          EXIT=0
-          for f in references/*.md knowledge/*.md SKILL.md; do
-            grep -oP '\]\(([^)]+)\)' "$f" | grep -v 'http' | tr -d '()' | \
-              sed 's/\]//g' | while read -r link; do
-                # Resolve relative path
-                dir=$(dirname "$f")
-                target="$dir/$link"
-                # Normalize
-                target=$(realpath --relative-to=. "$target" 2>/dev/null || echo "$link")
-                if [ ! -f "$target" ] && [ ! -f "$link" ]; then
-                  echo "WARN: $f has potentially broken link: $link"
-                fi
-              done
-          done
+          python3 -m py_compile scripts/AddExp.py scripts/CheckFiles.py scripts/ClearExp.py \
+            scripts/DispatchPlan.py scripts/CollectFlags.py scripts/status.py
+          if ls scripts/solvers/*.py >/dev/null 2>&1; then
+            python3 -m py_compile scripts/solvers/*.py
+          fi
+          echo "Python syntax OK"
 
-      - name: Markdown lint (basic)
+      - name: Validate exp/ JSONL strict schema
         run: |
-          # Check for trailing whitespace in headers
+          python3 scripts/CheckFiles.py . --exp-dir exp --json
+
+      - name: Smoke test workflow scripts
+        run: |
+          tmpdir="$(mktemp -d)"
+          mkdir -p "$tmpdir/web/A" "$tmpdir/Web/B" "$tmpdir/reverse/C"
+          printf 'FLAG: flag{a}\nSTATUS: solved\nTIMESTAMP: 2026-05-29T00:00:00Z\n' > "$tmpdir/web/A/flag.found"
+
+          python3 scripts/DispatchPlan.py "$tmpdir" --exp-dir exp --json > "$tmpdir/dispatch.json"
+          python3 - << 'PY' "$tmpdir/dispatch.json"
+          import json, sys
+          data = json.load(open(sys.argv[1], encoding='utf-8'))
+          assert data['summary']['unsolved_count'] == 2, data['summary']
+          assert data['summary']['skipped_solved_count'] == 1, data['summary']
+          assert any(a['category'] == 'web' for a in data['dispatch_agents'])
+          assert any(a['category'] == 're' for a in data['dispatch_agents'])
+          PY
+
+          python3 scripts/CollectFlags.py "$tmpdir" --json > "$tmpdir/collect.json"
+          grep -q '\[Web\]\[A\] flag{a}' "$tmpdir/flag.log"
+
+          python3 scripts/status.py "$tmpdir" --json > "$tmpdir/status.json"
+          python3 -m json.tool "$tmpdir/status.json" >/dev/null
+
+          rm -rf "$tmpdir"
+          echo "Workflow scripts smoke test OK"
+
+      - name: Markdown lint basic
+        run: |
           for f in SKILL.md references/*.md knowledge/*.md; do
             if grep -Pn '^#{1,6} .*\s+$' "$f"; then
               echo "WARN: Trailing whitespace in headers in $f"
             fi
           done
-          # Check for consistent header levels (no jump from # to ###)
           echo "Basic markdown lint OK"
 
       - name: Summary
@@ -106,136 +179,11 @@ jobs:
           echo "SKILL.md: $(wc -l < SKILL.md) lines"
           echo "References: $(wc -l references/*.md | tail -1)"
           echo "Knowledge: $(wc -l knowledge/*.md | tail -1)"
-          echo "Total files: $(find . -name '*.md' -not -path './.git/*' | wc -l)"
+          echo "Knowledge index entries: $(python3 - << 'PY'
+          import json
+          print(len(json.load(open('knowledge/index.json', encoding='utf-8'))))
+          PY
+          )"
+          echo "Total markdown files: $(find . -name '*.md' -not -path './.git/*' | wc -l)"
           echo "Exp entries: $(cat exp/*/*.jsonl 2>/dev/null | wc -l)"
           echo "Solver scripts: $(ls scripts/solvers/*.py 2>/dev/null | wc -l)"
-
-      - name: Validate exp/ JSONL strict schema
-        run: |
-          python3 << 'PYEOF'
-          import json, re, sys, glob
-
-          ALLOWED_KEYS = {'challenge', 'name', 'technique', 'status', 'experience', 'artifacts'}
-          ALLOWED_CHALLENGES = {'Web', 'Pwn', 'Re', 'Mobile', 'Misc', 'Crypto', 'Forensics'}
-          FLAG_RE = re.compile(r'(ISCC|flag|FLAG|CTF|ENO|HTB|pico)\{')
-          IP_RE = re.compile(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?')
-          URL_RE = re.compile(r'https?://')
-          errors = 0
-
-          for path in sorted(glob.glob('exp/*/*.jsonl')):
-              with open(path, encoding='utf-8') as fh:
-                  lines = fh.readlines()
-              if not lines or all(l.strip() == '' for l in lines):
-                  print(f'{path}: empty (placeholder)')
-                  continue
-              for i, line in enumerate(lines, 1):
-                  line = line.strip()
-                  if not line:
-                      continue
-                  try:
-                      obj = json.loads(line)
-                  except json.JSONDecodeError as e:
-                      print(f'FAIL {path}:{i} invalid JSON: {e}')
-                      errors += 1; continue
-
-                  tag = f'{path}:{i}'
-
-                  # -- no extra keys --
-                  extra = set(obj.keys()) - ALLOWED_KEYS
-                  if extra:
-                      print(f'FAIL {tag} forbidden keys: {extra}')
-                      errors += 1
-
-                  # -- required fields --
-                  for f in ('challenge', 'name', 'technique', 'status', 'experience'):
-                      if f not in obj:
-                          print(f'FAIL {tag} missing field: {f}')
-                          errors += 1
-
-                  # -- challenge enum --
-                  ch = obj.get('challenge', '')
-                  if ch not in ALLOWED_CHALLENGES:
-                      print(f'FAIL {tag} challenge {ch!r} must be one of {ALLOWED_CHALLENGES}')
-                      errors += 1
-
-                  # -- name length --
-                  name = obj.get('name', '')
-                  if len(name) < 1 or len(name) > 60:
-                      print(f'FAIL {tag} name length {len(name)} not in [1,60]')
-                      errors += 1
-
-                  # -- technique length --
-                  tech = obj.get('technique', '')
-                  if len(tech) < 1 or len(tech) > 120:
-                      print(f'FAIL {tag} technique length {len(tech)} not in [1,120]')
-                      errors += 1
-
-                  # -- status enum --
-                  if obj.get('status') not in ('solved', 'partial'):
-                      print(f'FAIL {tag} status must be "solved" or "partial"')
-                      errors += 1
-
-                  # -- experience array --
-                  exp = obj.get('experience', [])
-                  if not isinstance(exp, list):
-                      print(f'FAIL {tag} experience must be array')
-                      errors += 1; exp = []
-                  if len(exp) < 3 or len(exp) > 8:
-                      print(f'FAIL {tag} experience count {len(exp)} not in [3,8]')
-                      errors += 1
-                  for j, e in enumerate(exp):
-                      if not isinstance(e, str):
-                          print(f'FAIL {tag} experience[{j}] not string')
-                          errors += 1; continue
-                      if len(e) < 15 or len(e) > 150:
-                          print(f'FAIL {tag} experience[{j}] length {len(e)} not in [15,150]')
-                          errors += 1
-
-                  # -- artifacts types --
-                  arts = obj.get('artifacts', {})
-                  if arts:
-                      if not isinstance(arts, dict):
-                          print(f'FAIL {tag} artifacts must be object')
-                          errors += 1
-                      else:
-                          for k, v in arts.items():
-                              if not isinstance(v, (str, int, float)):
-                                  print(f'FAIL {tag} artifacts.{k} must be string or number')
-                                  errors += 1
-
-                  # -- forbidden content scan (all string values) --
-                  blob = json.dumps(obj, ensure_ascii=False)
-                  if FLAG_RE.search(blob):
-                      print(f'FAIL {tag} contains flag pattern')
-                      errors += 1
-                  if IP_RE.search(blob):
-                      print(f'FAIL {tag} contains IP address')
-                      errors += 1
-                  if URL_RE.search(blob):
-                      print(f'FAIL {tag} contains URL')
-                      errors += 1
-
-              print(f'{path}: {i} entries checked')
-
-          if errors:
-              print(f'\n{errors} error(s) found')
-              sys.exit(1)
-          else:
-              print('\nAll entries valid')
-          PYEOF
-
-      - name: Validate knowledge metadata headers
-        run: |
-          for f in knowledge/*.md; do
-            if ! head -5 "$f" | grep -q '最后更新'; then
-              echo "WARN: $f missing '最后更新' metadata header"
-            fi
-          done
-          echo "Knowledge metadata check done"
-
-      - name: Validate solver scripts syntax
-        if: hashFiles('scripts/solvers/*.py') != ''
-        run: |
-          for f in scripts/solvers/*.py; do
-            python3 -m py_compile "$f" && echo "$f: syntax OK" || (echo "FAIL: $f has syntax errors" && exit 1)
-          done

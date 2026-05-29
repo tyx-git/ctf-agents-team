@@ -127,13 +127,10 @@ find $COMPETITION_DIR -mindepth 2 -maxdepth 2 -type d | sort
 python3 .skills/ctf-agents-team/scripts/DispatchPlan.py $COMPETITION_DIR --exp-dir .skills/ctf-agents-team/exp --json
 ```
 
-脚本负责：
-- 识别标准品类：`web`, `pwn`, `re`, `misc`, `crypto`, `forensics`, `mobile`
-- 处理大小写兼容和 `reverse/` → `re` 别名
-- 跳过已有有效 `flag.found` 的题目
-- 按经验库命中、附件完整度、目录大小排序
-- 执行 Dispatch Gate：目录存在 + 有未解题 + `flag.found` 不存在/无效
-- 每 5 题切分一个 Agent，并计算 `time_budget_min = min(题目数 × 45, 180)`
+脚本输出是调度事实来源；模型无需读取脚本内容。只使用 JSON 中的：
+- `summary`：总体数量
+- `categories[]`：各品类是否跳过及原因
+- `dispatch_agents[]`：需要启动的 Agent 批次、题目列表、`time_budget_min`
 
 Lead Agent 将脚本 JSON 输出写入/同步到 `task_plan.md`，只对 `dispatch_agents[]` 中的批次启动 Agent。
 
@@ -211,7 +208,7 @@ Lead Agent 收集所有题目目录下的 `exp_candidate.jsonl`：
    python3 .skills/ctf-agents-team/scripts/AddExp.py --commit '<json_line>'
    ```
    `AddExp.py` 会自动发现并同步 `~/.claude` 和 `~/.codex` 下的 exp/ 仓库，确保模型无论从哪个路径读取经验库都是一致的。
-3. 合并完成后执行 `python3 .skills/ctf-agents-team/scripts/ClearExp.py` 清理所有 `exp_candidate.jsonl`
+3. 合并完成后执行 `python3 .skills/ctf-agents-team/scripts/ClearExp.py $COMPETITION_DIR` 清理所有 `exp_candidate.jsonl`
 
 **4.4 状态更新**：
 1. 更新 `task_plan.md`：标记每道题的最终状态（enumerated/in_progress/solved/verified）
@@ -731,25 +728,12 @@ exp/
 
 ### Knowledge Base（按需加载的深度技术文档）
 
-先读取轻量索引 [knowledge/index.json](knowledge/index.json)，按 `signals` / `categories` / `load_when` 选择需要加载的知识文件；不要一次性读取整个 `knowledge/` 目录。
+以 [knowledge/index.json](knowledge/index.json) 为唯一知识目录索引。需要深度知识时：
+1. 先读取 `knowledge/index.json`
+2. 根据题目信号匹配 `signals` / `categories` / `load_when`
+3. 只读取命中的具体 knowledge 文件
 
-- [knowledge/pyjails.md](knowledge/pyjails.md) — Python jail 逃逸
-- [knowledge/bashjails.md](knowledge/bashjails.md) — Bash jail 逃逸
-- [knowledge/encodings.md](knowledge/encodings.md) — 编码与 QR
-- [knowledge/encodings-advanced.md](knowledge/encodings-advanced.md) — 高级编码 (Verilog/Gray/RTF/SMS)
-- [knowledge/rf-sdr.md](knowledge/rf-sdr.md) — RF/SDR/IQ 信号处理
-- [knowledge/dns.md](knowledge/dns.md) — DNS 利用
-- [knowledge/games-and-vms.md](knowledge/games-and-vms.md) — 游戏/VM/约束求解 Part 1
-- [knowledge/games-and-vms-2.md](knowledge/games-and-vms-2.md) — Part 2
-- [knowledge/games-and-vms-3.md](knowledge/games-and-vms-3.md) — Part 3
-- [knowledge/games-and-vms-4.md](knowledge/games-and-vms-4.md) — Part 4
-- [knowledge/linux-privesc.md](knowledge/linux-privesc.md) — Linux 提权
-- [knowledge/ctfd-navigation.md](knowledge/ctfd-navigation.md) — CTFd API 导航
-- [knowledge/blockchain.md](knowledge/blockchain.md) — Blockchain/Smart Contract 安全
-- [knowledge/ai-security.md](knowledge/ai-security.md) — AI/ML 安全 (对抗样本/模型逆向/Prompt Injection)
-- [knowledge/lattice-crypto.md](knowledge/lattice-crypto.md) — 格密码 (LLL/Coppersmith/HNP/Knapsack)
-- [knowledge/docker-escape.md](knowledge/docker-escape.md) — Docker/Container 逃逸
-- [knowledge/kernel-pwn.md](knowledge/kernel-pwn.md) — Linux Kernel Pwn
+不要一次性读取整个 `knowledge/` 目录；完整文件清单以 `knowledge/index.json` 为准。
 
 ---
 
