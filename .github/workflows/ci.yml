@@ -34,8 +34,11 @@ jobs:
 
           errors = 0
           files = [Path('SKILL.md'), *Path('references').glob('*.md'), *Path('knowledge').glob('*.md')]
+          def strip_fenced_code(text):
+              return re.sub(r'```.*?```', '', text, flags=re.S)
+
           for md in files:
-              text = md.read_text(encoding='utf-8')
+              text = strip_fenced_code(md.read_text(encoding='utf-8'))
               for link in re.findall(r'\]\(([^)]+)\)', text):
                   if link.startswith(('http://', 'https://', '#')):
                       continue
@@ -139,24 +142,44 @@ jobs:
         run: |
           python3 scripts/CheckFiles.py . --exp-dir exp --json
 
+      - name: Validate exp guard negative cases
+        run: |
+          set +e
+          python3 scripts/AddExp.py --commit '{"challenge":"Web","name":"GuardTest","technique":"TechniqueName","status":"solved","experience":["这是一条足够长的经验内容用于测试。","这是一条可能包含推测词的经验内容。","这是第三条足够长的经验内容用于测试。"]}' --json > /tmp/addexp-spec.json
+          code=$?
+          set -e
+          test $code -ne 0
+          grep -q '未验证推测' /tmp/addexp-spec.json
+
+          set +e
+          python3 scripts/AddExp.py --commit '{"challenge":"Web","name":"GuardTest","technique":"TechniqueName","status":"partial","experience":["这是一条足够长的经验内容用于测试。","这是另一条足够长的经验内容用于测试。","这是第三条足够长的经验内容用于测试。"],"artifacts":{"token":"abcdefghijk"}}' --json > /tmp/addexp-token.json
+          code=$?
+          set -e
+          test $code -ne 0
+          grep -q '敏感字段' /tmp/addexp-token.json
+
       - name: Smoke test workflow scripts
         run: |
           tmpdir="$(mktemp -d)"
           mkdir -p "$tmpdir/web/A" "$tmpdir/Web/B" "$tmpdir/reverse/C"
           printf 'FLAG: flag{a}\nSTATUS: solved\nTIMESTAMP: 2026-05-29T00:00:00Z\n' > "$tmpdir/web/A/flag.found"
+          printf 'FLAG: flag{b}\nSTATUS: solved\nTIMESTAMP: 2026-05-29T00:00:00Z\n' > "$tmpdir/Web/B/flag.found"
 
           python3 scripts/DispatchPlan.py "$tmpdir" --exp-dir exp --json > "$tmpdir/dispatch.json"
           python3 - << 'PY' "$tmpdir/dispatch.json"
           import json, sys
           data = json.load(open(sys.argv[1], encoding='utf-8'))
-          assert data['summary']['unsolved_count'] == 2, data['summary']
+          assert data['summary']['unsolved_count'] == 1, data['summary']
           assert data['summary']['skipped_solved_count'] == 1, data['summary']
-          assert any(a['category'] == 'web' for a in data['dispatch_agents'])
+          assert data['summary']['invalid_category_dir_count'] == 1, data['summary']
+          assert any('Web' in item['path'] for item in data['invalid_category_dirs'])
+          assert not any(a['category'] == 'web' for a in data['dispatch_agents'])
           assert any(a['category'] == 're' for a in data['dispatch_agents'])
           PY
 
           python3 scripts/CollectFlags.py "$tmpdir" --json > "$tmpdir/collect.json"
           grep -q '\[Web\]\[A\] flag{a}' "$tmpdir/flag.log"
+          ! grep -q '\[Web\]\[B\] flag{b}' "$tmpdir/flag.log"
 
           python3 scripts/status.py "$tmpdir" --json > "$tmpdir/status.json"
           python3 -m json.tool "$tmpdir/status.json" >/dev/null

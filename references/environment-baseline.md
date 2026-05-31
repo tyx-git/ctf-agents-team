@@ -103,7 +103,7 @@ gem install zsteg        # Misc: PNG/BMP LSB 隐写
 
 ### 完整 Bootstrap 脚本
 ```bash
-bash .skills/ctf-agents-team/scripts/bootstrap-linux.sh
+bash "$SKILL_DIR/scripts/bootstrap-linux.sh"
 ```
 
 ---

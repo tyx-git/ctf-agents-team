@@ -74,7 +74,11 @@ def collect(competition_dir: Path, dry_run: bool) -> dict[str, Any]:
         if len(rel_parts) < 3:
             invalid.append({"path": str(path), "reason": "not under category/challenge"})
             continue
-        category = CATEGORY_ALIASES.get(rel_parts[0].lower(), rel_parts[0].lower())
+        raw_category = rel_parts[0]
+        if raw_category != raw_category.lower():
+            invalid.append({"path": str(path), "reason": "category directory must be lowercase"})
+            continue
+        category = CATEGORY_ALIASES.get(raw_category, raw_category)
         if category not in VALID_CATEGORIES:
             invalid.append({"path": str(path), "reason": "invalid category"})
             continue

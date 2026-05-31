@@ -4,7 +4,7 @@
 数字取证：内存分析、磁盘镜像、流量分析、侧信道、文件恢复。
 
 ## When Selected
-- `.pcap/.pcapng/.evtx/.raw/.dd/.E01`
+- 原始 `.pcap/.pcapng/.evtx/.raw/.dd/.E01`（原始 PCAP 一律先归 Forensics；提取出的编码文本/图片/压缩包再转 Misc）
 - memory dump / disk image
 - 侧信道/功耗分析
 - 文件恢复/元数据取证

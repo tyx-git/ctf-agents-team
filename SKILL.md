@@ -21,6 +21,7 @@ metadata:
 
 ```
 ISCC/                           ← 比赛根目录
+├── limit.md                    ← 比赛/平台解题限制（频率、超时等，空则无限制）
 ├── task_plan.md                ← 比赛级任务计划（所有题目概览与进度）
 ├── findings.md                 ← 比赛级发现记录（跨题目共性发现）
 ├── progress.md                 ← 比赛级进度日志
@@ -67,6 +68,13 @@ ISCC/                           ← 比赛根目录
 - exploit 脚本固定为 `exploit.py`（Pwn/Web/Crypto 等可脚本化的题必须写）
 - 题目名中若含 `/`, `:`, `*`, `?`, `[` 等文件系统敏感字符，创建文件时替换为 `_`。如 "PWN: 100" → `PWN_ 100.md`
 
+**脚本路径约定**：所有脚本命令先解析统一路径变量，避免项目级安装和全局安装路径不一致：
+```bash
+SKILL_DIR=".skills/ctf-agents-team"
+[ -d "$SKILL_DIR" ] || SKILL_DIR="$HOME/.claude/skills/ctf-agents-team"
+```
+后续命令统一使用 `$SKILL_DIR/scripts/...`、`$SKILL_DIR/exp/...`。
+
 **⚠️ 逐题交付原则**：
 - 每解完一道题，**立即**完成该题的全部交付（WP + exploit.py + flag.found）
 - **不要**等所有题目做完再统一汇总 — 上下文压缩会导致信息丢失
@@ -89,6 +97,15 @@ ISCC/                           ← 比赛根目录
 5. 向用户确认是否继续该题或切换新题
 ```
 
+### Phase 0.5: 比赛限制 Preflight
+
+**所有模式（Solo / 单题 / 描述 / 恢复）进入解题或调度前都必须执行**：
+1. 根据用户参数解析比赛根目录
+2. 若 `<比赛>/limit.md` 不存在，则创建空文件（表示无特殊限制）
+3. 若 `limit.md` 非空，读取其中的频率、超时、禁止操作等限制
+4. 将限制注入当前 Lead 流程和后续 Agent prompt
+5. 所有网络扫描、目录爆破、CTFd API、远程服务交互必须遵守这些限制
+
 ### Phase 1: 比赛入场 (Competition Intake)
 
 扫描比赛目录，建立全局视图：
@@ -104,9 +121,12 @@ find $COMPETITION_DIR -mindepth 2 -maxdepth 2 -type d | sort
 
 **创建比赛级计划文件**（若不存在）：
 
-1. `task_plan.md` — 所有题目列表、当前聚焦题目、全局进度
-2. `findings.md` — 跨题目发现（如共用 flag 格式、平台特征、共享基础设施）
-3. `progress.md` — 按时间线记录整个比赛的解题进度
+1. `limit.md` — 比赛/平台解题限制记录（频率上限、超时、禁止操作等；若不存在则创建空文件，空文件表示无限制）
+2. `task_plan.md` — 所有题目列表、当前聚焦题目、全局进度
+3. `findings.md` — 跨题目发现（如共用 flag 格式、平台特征、共享基础设施）
+4. `progress.md` — 按时间线记录整个比赛的解题进度
+
+**读取比赛限制**：本步骤复用 Phase 0.5 的结果；若 `limit.md` 非空，后续所有 Agent prompt 都必须包含限制摘要。
 
 **CTFd 平台检测**（如有比赛 URL）：
 - 检查是否为 CTFd 平台
@@ -124,7 +144,9 @@ find $COMPETITION_DIR -mindepth 2 -maxdepth 2 -type d | sort
 **仅在 Solo 模式下执行。** Phase 1 扫描完成后，先用脚本生成 dispatch 计划，再并行启动品类 Agent。
 
 ```bash
-python3 .skills/ctf-agents-team/scripts/DispatchPlan.py $COMPETITION_DIR --exp-dir .skills/ctf-agents-team/exp --json
+SKILL_DIR=".skills/ctf-agents-team"
+[ -d "$SKILL_DIR" ] || SKILL_DIR="$HOME/.claude/skills/ctf-agents-team"
+python3 "$SKILL_DIR/scripts/DispatchPlan.py" $COMPETITION_DIR --exp-dir "$SKILL_DIR/exp" --json
 ```
 
 脚本输出是调度事实来源；模型无需读取脚本内容。只使用 JSON 中的：
@@ -143,9 +165,10 @@ Lead Agent 将脚本 JSON 输出写入/同步到 `task_plan.md`，只对 `dispat
 **品类 Agent 的职责**：
 - 获得该批次题目的完整解题自主权（Phase 2→6）
 - 按优先级顺序逐题作答（品类内串行）
-- 每题独立创建 `wp.process`、`题目名称.md`，可脚本化的题创建 `exploit.py`
+- 可以读取题目目录内的所有题目文件（附件、源码、binary、pcap、README 等）；只允许写入题目目录内的交付文件：`wp.process`、`题目名称.md`、`exploit.py`、`flag.found`、`exp_candidate.jsonl`
 - 发现 flag 后写入该题目录下的 `flag.found` 中间文件（三行格式）
 - **子 Agent 不直接写 `flag.log`** — 仅 Lead Agent 汇总
+- **子 Agent 不读写比赛级文件**：`limit.md`、`task_plan.md`、`findings.md`、`progress.md`、`flag.log` 只允许 Lead Agent 读写；比赛限制由 Lead Agent 注入 prompt
 - 解完一题后，若有可复用经验则写入题目目录下的 `exp_candidate.jsonl`
 - 遵守时间管理与 3-Strike Protocol
 
@@ -184,18 +207,18 @@ TIMESTAMP: 2026-05-21T14:30:00Z
 所有品类 Agent 返回后，使用脚本扫描并汇总 `flag.found`：
 
 ```bash
-python3 .skills/ctf-agents-team/scripts/CollectFlags.py $COMPETITION_DIR --json
+python3 "$SKILL_DIR/scripts/CollectFlags.py" $COMPETITION_DIR --json
 ```
 
 脚本负责校验三行格式、跳过已有 `flag.log` 记录、冲突时取最新 mtime，并输出追加/跳过/无效摘要。汇总完成后用 `status.py` 查看状态：
 
 ```bash
-python3 .skills/ctf-agents-team/scripts/status.py $COMPETITION_DIR --json
+python3 "$SKILL_DIR/scripts/status.py" $COMPETITION_DIR --json
 ```
 
 **4.2.1 工程校验**（汇总**后**执行）：
 ```bash
-python3 .skills/ctf-agents-team/scripts/CheckFiles.py $COMPETITION_DIR --exp-dir .skills/ctf-agents-team/exp
+python3 "$SKILL_DIR/scripts/CheckFiles.py" $COMPETITION_DIR --exp-dir "$SKILL_DIR/exp"
 ```
 校验目录合规、文件命名、flag.log 格式与一致性、经验库 schema。有错误时立即修复。
 
@@ -205,10 +228,10 @@ Lead Agent 收集所有题目目录下的 `exp_candidate.jsonl`：
 1. 逐条校验 JSON 格式合法性
 2. 对每条有效记录，使用 `AddExp.py --commit` 追加到全部经验库（自动去重 + 多仓同步）：
    ```bash
-   python3 .skills/ctf-agents-team/scripts/AddExp.py --commit '<json_line>'
+   python3 "$SKILL_DIR/scripts/AddExp.py" --commit '<json_line>'
    ```
    `AddExp.py` 会自动发现并同步 `~/.claude` 和 `~/.codex` 下的 exp/ 仓库，确保模型无论从哪个路径读取经验库都是一致的。
-3. 合并完成后执行 `python3 .skills/ctf-agents-team/scripts/ClearExp.py $COMPETITION_DIR` 清理所有 `exp_candidate.jsonl`
+3. 合并完成后执行 `python3 "$SKILL_DIR/scripts/ClearExp.py" $COMPETITION_DIR` 清理所有 `exp_candidate.jsonl`
 
 **4.4 状态更新**：
 1. 更新 `task_plan.md`：标记每道题的最终状态（enumerated/in_progress/solved/verified）
@@ -248,7 +271,7 @@ grep -rniE '(flag|ctf|password|secret|admin)\{' . 2>/dev/null
 strings * 2>/dev/null | grep -iE '(flag|ctf)\{' | head -5
 
 # 搜索历史经验库
-grep -ri "关键词" .skills/ctf-agents-team/exp/web/web.jsonl .skills/ctf-agents-team/exp/misc/misc.jsonl .skills/ctf-agents-team/exp/pwn/pwn.jsonl .skills/ctf-agents-team/exp/re/re.jsonl .skills/ctf-agents-team/exp/crypto/crypto.jsonl .skills/ctf-agents-team/exp/forensics/forensics.jsonl 2>/dev/null
+grep -ri "关键词" $SKILL_DIR/exp/web/web.jsonl $SKILL_DIR/exp/misc/misc.jsonl $SKILL_DIR/exp/pwn/pwn.jsonl $SKILL_DIR/exp/re/re.jsonl $SKILL_DIR/exp/crypto/crypto.jsonl $SKILL_DIR/exp/forensics/forensics.jsonl 2>/dev/null
 ```
 
 **按品类快筛模板**（30 秒内完成，不命中则进入深度分析）：
@@ -323,7 +346,7 @@ python3 --version && pip3 --version
 | Forensics | `tshark --version`, `binwalk --help`, `foremost -V` |
 
 缺失工具优先用 pip 安装，apt 包提示用户手动安装。
-如需运行完整 bootstrap：`bash .skills/ctf-agents-team/scripts/bootstrap-linux.sh`
+如需运行完整 bootstrap：先按“脚本路径约定”解析 `SKILL_DIR`，再执行 `bash "$SKILL_DIR/scripts/bootstrap-linux.sh"`
 
 ### Phase 4: 解题 (Solve)
 
@@ -384,11 +407,11 @@ strings output.bin | grep -iE '\{.*\}'
 - `evidence` — 强证据但未端到端复现
 - `verified` — 可复现的 flag 路径
 
-**只有达到 `verified` 后才能写最终 WP 和更新 flag.log。**
+**单题模式由 Lead Agent 端到端确认后可达到 `verified`；Solo 子 Agent 最多达到 `solved`，写入 `flag.found`。只有 Lead Agent 汇总、去重、必要时提交平台并写入 `flag.log` 后，题目才是 `verified`。**
 
 ### Phase 6: 写 WP 与交付 (Writeup & Delivery)
 
-**⚠️ 每道题 verified 后立即执行以下全部步骤，不要延迟到后面统一处理。**
+**⚠️ 每道题确认 flag 后立即执行交付，不要延迟到后面统一处理。单题模式 Lead Agent 交付时可标 `verified`；Solo 子 Agent 交付时只能标 `solved`。**
 
 1. 创建最终 WP: `题目名称.md`（如题目叫 overflow → 文件名为 `overflow.md`，**禁止** `wp：` 前缀）
 2. 格式严格遵循 [references/wp-format.md](references/wp-format.md)
@@ -405,19 +428,19 @@ strings output.bin | grep -iE '\{.*\}'
 5. **flag.log 写入规则**：
    - **单题模式 / Lead Agent 直接解题**：Lead Agent 自行写入 `flag.log`
    - **Solo 模式子 Agent**：**不写 flag.log**，仅写 `flag.found`，由 Lead Agent 汇总时统一写入
-6. 更新 `task_plan.md` 标记该题状态为 `solved`（子 Agent）或 `verified`（Lead Agent 直接解题）
-7. 更新 `progress.md` 记录解题时间线
+6. 状态语义：子 Agent 仅在题目目录内记录 `solved`；Lead Agent 直接解题时可更新比赛级状态为 `verified`
+7. 比赛级 `task_plan.md` / `progress.md` 只允许 Lead Agent 更新，Solo 子 Agent 不直接读写
 8. **经验库回写**：
    - **单题模式 / Lead Agent 直接解题**：使用 `AddExp.py --commit` 追加到全部经验库（自动去重 + 同步 `~/.claude` 和 `~/.codex`）：
      ```bash
-     python3 .skills/ctf-agents-team/scripts/AddExp.py --commit '<json_line>'
+     python3 "$SKILL_DIR/scripts/AddExp.py" --commit '<json_line>'
      ```
    - **Solo 模式子 Agent**：写入题目目录下的 `exp_candidate.jsonl`，由 Lead Agent 最终合并（同样通过 `AddExp.py --commit`）
    - 跳过条件：纯模板题（如直接 ret2win 无任何变体）、签到题、无技术含量的题目
    - 回写条件：有坑点、非常规技巧、试错路径有参考价值、工具链组合值得记录
 9. **工程校验**（单题模式 / Lead Agent 直接解题时执行）：
    ```bash
-   python3 .skills/ctf-agents-team/scripts/CheckFiles.py $COMPETITION_DIR --exp-dir .skills/ctf-agents-team/exp
+   python3 "$SKILL_DIR/scripts/CheckFiles.py" $COMPETITION_DIR --exp-dir "$SKILL_DIR/exp"
    ```
    校验 flag.log 格式、flag.found 一致性、经验库 schema。有错误时立即修复。
 
@@ -688,7 +711,7 @@ exp/
 
 纯模板题、签到题无需回写。
 
-**注意**：经验库路径是相对于 skill 目录（`.skills/ctf-agents-team/exp/`），而非比赛目录。
+**注意**：经验库路径是相对于 skill 目录（`$SKILL_DIR/exp/`），而非比赛目录。
 
 **JSONL 字段** (每行一条 JSON，严格 schema 见 [exp/README.md](exp/README.md))：
 - `challenge`: 品类枚举，必须为 `Web` / `Pwn` / `Re` / `Mobile` / `Misc` / `Crypto` / `Forensics`
@@ -767,10 +790,10 @@ exp/
 
 | 模式 | 触发 | 行为 |
 |------|------|------|
-| **Session Recovery** | 无参数 | Phase 0：扫描未完成的 wp.process，恢复上次进度 |
-| **Solo 模式** | `BugKu` | Phase 1 入场 → 扫描所有品类题目 → 按品类并行 dispatch Agent → 逐题作答 |
-| **单题模式** | `BugKu/Web/one things` | 直接进入 Phase 2 侦察该题 → Phase 3→6 完整解题 |
-| **描述模式** | `ISCC 新题 Web 叫 xxx` | 创建题目目录 → Phase 2 |
+| **Session Recovery** | 无参数 | Phase 0 → Phase 0.5：扫描未完成工作并加载比赛限制 |
+| **Solo 模式** | `BugKu` | Phase 0.5 → Phase 1 入场 → 扫描所有品类题目 → 按品类并行 dispatch Agent → 逐题作答 |
+| **单题模式** | `BugKu/Web/one things` | Phase 0.5 → 直接进入 Phase 2 侦察该题 → Phase 3→6 完整解题 |
+| **描述模式** | `ISCC 新题 Web 叫 xxx` | Phase 0.5 → 创建题目目录 → Phase 2 |
 
 ### 示例
 

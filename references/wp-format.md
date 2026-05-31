@@ -22,7 +22,7 @@
 
 ## Challenge Info
 - **比赛**: ISCC 2026
-- **类型**: Web / Pwn / Re / Mobile / Misc
+- **类型**: Web / Pwn / Re / Mobile / Misc / Crypto / Forensics
 - **目录**: ISCC/web/题目名称
 - **状态**: enumerated / in_progress / solved / verified
 - **Flag 格式**: ISCC{...}（如已知）
@@ -82,7 +82,7 @@ token = jwt.encode({"user": "admin", "role": "admin"}, "weak_key_123", algorithm
 - 返回 flag: ISCC{jwt_f0rg3ry_is_fun}
 
 **结论**: 确认 flag，路径已验证
-**状态更新**: solved → verified
+**状态更新**: Solo 子 Agent: in_progress → solved；Lead Agent 汇总/单题验证: solved → verified
 
 ---
 
@@ -115,7 +115,7 @@ token = jwt.encode({"user": "admin", "role": "admin"}, "weak_key_123", algorithm
 ## 二、题目名称.md — 最终详细 WP
 
 **位置**：`<比赛>/<分类>/<题目>/题目名称.md`（如 `ISCC/pwn/overflow/overflow.md`）
-**时机**：题目 `verified` 后撰写
+**时机**：单题模式 / Lead Agent 直接解题时在题目 `verified` 后撰写；Solo 子 Agent 在本地确认 flag、状态达到 `solved` 后立即撰写，Lead Agent 汇总后再标记 `verified`
 **原则**：一个从未见过此题的人，照着 WP 能完整复现
 
 ### 格式模板

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import shutil
@@ -25,6 +26,8 @@ VALID_CHALLENGES = {"Web", "Pwn", "Re", "Mobile", "Misc", "Crypto", "Forensics"}
 VALID_STATUS = {"solved", "partial"}
 REQUIRED_FIELDS = {"challenge", "name", "technique", "status", "experience"}
 OPTIONAL_FIELDS = {"artifacts", "failed_attempts"}
+SPECULATIVE_TERMS = ("可能", "猜测", "未确认", "疑似", "也许", "maybe", "probably", "guess", "unconfirmed")
+SENSITIVE_JSON_KEYS = {"token", "api_key", "api-key", "session", "authorization", "cookie", "password"}
 
 CHALLENGE_TO_DIR: dict[str, str] = {
     "Web": "web", "Pwn": "pwn", "Re": "re", "Mobile": "re",
@@ -72,6 +75,49 @@ def info(msg: str) -> None:
         print(f"   {msg}")
 
 
+def _iter_json_values(value: Any, path: str = ""):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            yield from _iter_json_values(child, child_path)
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            yield from _iter_json_values(child, f"{path}[{idx}]")
+    else:
+        yield path, value
+
+
+
+def _find_forbidden_json_content(entry: dict[str, Any]) -> tuple[str, str] | None:
+    for path, item in _iter_json_values(entry):
+        path_keys = [seg.split("[", 1)[0].lower() for seg in path.split(".") if seg]
+        sensitive_key = next((key for key in path_keys if key in SENSITIVE_JSON_KEYS), None)
+        if sensitive_key and item not in (None, ""):
+            return path, f"敏感字段: {sensitive_key}"
+        if not isinstance(item, (str, int, float)):
+            continue
+        text = str(item)
+        for pattern in FORBIDDEN_PATTERNS:
+            match = pattern.search(text)
+            if match:
+                return path, match.group(0)[:60]
+    return None
+
+def _contains_speculative_terms(entry: dict[str, Any]) -> tuple[str, str] | None:
+    for path, item in _iter_json_values(entry):
+        if path == "name" or not isinstance(item, str):
+            continue
+        lower = item.lower()
+        for term in SPECULATIVE_TERMS:
+            term_lower = term.lower()
+            if term_lower.isascii():
+                if re.search(rf"\b{re.escape(term_lower)}\b", lower):
+                    return path, term
+            elif term_lower in lower:
+                return path, term
+    return None
+
+
 # ── 仓库发现 ─────────────────────────────────────────────────────────────
 
 def _iter_stores() -> list[Path]:
@@ -103,6 +149,11 @@ def _validate(entry: dict, source: str = "<stdin>") -> None:
     st = entry.get("status")
     if st not in VALID_STATUS:
         error_exit(f"status 无效: '{st}' (solved/partial)  ({source})")
+    if st == "solved":
+        speculative = _contains_speculative_terms(entry)
+        if speculative:
+            path, term = speculative
+            error_exit(f"solved 条目包含未验证推测: {path} 命中 '{term}'  ({source})")
 
     name = entry.get("name", "")
     if not isinstance(name, str) or not (1 <= len(name) <= 60):
@@ -148,11 +199,10 @@ def _validate(entry: dict, source: str = "<stdin>") -> None:
             if not isinstance(v, (str, int, float)):
                 error_exit(f"artifacts.{k} 值只能为 string/number  ({source})")
 
-    content_str = json.dumps(entry, ensure_ascii=False)
-    for pattern in FORBIDDEN_PATTERNS:
-        match = pattern.search(content_str)
-        if match:
-            error_exit(f"含禁止内容 ({pattern.pattern[:40]}): '{match.group(0)[:60]}'  ({source})")
+    forbidden = _find_forbidden_json_content(entry)
+    if forbidden:
+        path, detail = forbidden
+        error_exit(f"含禁止内容: {path} — {detail}  ({source})")
 
 
 # ── 去重 ─────────────────────────────────────────────────────────────────
@@ -236,30 +286,35 @@ def _debug_syn(target_dir: str | None = None) -> None:
 # ── 主入口 ───────────────────────────────────────────────────────────────
 
 def main() -> None:
+    global OUTPUT_JSON
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-    args = [a for a in sys.argv[1:] if a != "--json"]
-    if not args or args[0] in ("-h", "--help"):
-        print(__doc__)
-        return
+    parser = argparse.ArgumentParser(description="统一经验库追加与同步工具")
+    parser.add_argument("--commit", help="一条 JSON 经验记录")
+    parser.add_argument("--debug-syn", nargs="?", const="", metavar="TARGET_DIR", help="将 ~/.claude 的 exp/ 同步到目标目录；不填则同步到当前目录 exp/")
+    parser.add_argument("--json", action="store_true", help="输出精简 JSON")
+    args = parser.parse_args()
+    OUTPUT_JSON = args.json
 
-    if args[0] == "--commit":
-        if len(args) < 2:
-            error_exit("--commit 需要一条 JSON 经验记录")
+    if args.commit is not None and args.debug_syn is not None:
+        error_exit("--commit 与 --debug-syn 不能同时使用")
+
+    if args.commit is not None:
         try:
-            entry = json.loads(args[1])
+            entry = json.loads(args.commit)
         except json.JSONDecodeError as exc:
             error_exit(f"JSON 解析失败: {exc}")
         if not isinstance(entry, dict):
             error_exit(f"经验条目必须是 JSON 对象, 不是 {type(entry).__name__}")
         _commit(entry)
+        return
 
-    elif args[0] == "--debug-syn":
-        _debug_syn(args[1] if len(args) > 1 else None)
+    if args.debug_syn is not None:
+        _debug_syn(args.debug_syn or None)
+        return
 
-    else:
-        error_exit(f"未知参数: '{args[0]}' (用法见 --help)")
+    parser.print_help()
 
 
 if __name__ == "__main__":

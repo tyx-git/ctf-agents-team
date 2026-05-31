@@ -149,7 +149,7 @@ ctf-agents-team/
 The bootstrap script installs the full baseline toolset defined in [references/environment-baseline.md](references/environment-baseline.md):
 
 ```bash
-bash .skills/ctf-agents-team/scripts/bootstrap-linux.sh
+bash "$SKILL_DIR/scripts/bootstrap-linux.sh"
 ```
 
 Or install manually — see [references/environment-baseline.md](references/environment-baseline.md) for the full list.

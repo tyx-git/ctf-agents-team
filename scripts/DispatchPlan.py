@@ -54,15 +54,23 @@ def _flag_found_valid(challenge_dir: Path) -> bool:
     return all(fields.values())
 
 
-def _find_category_dirs(root: Path) -> dict[str, list[Path]]:
+def _find_category_dirs(root: Path) -> tuple[dict[str, list[Path]], list[dict[str, str]]]:
     result = {cat: [] for cat in VALID_CATEGORIES}
+    invalid = []
     for item in root.iterdir():
         if not item.is_dir():
             continue
-        canonical = CATEGORY_ALIASES.get(item.name.lower(), item.name.lower())
-        if canonical in result:
-            result[canonical].append(item)
-    return result
+        raw = item.name
+        lowered = raw.lower()
+        canonical = CATEGORY_ALIASES.get(lowered, lowered)
+        if canonical not in result:
+            continue
+        # Strict lowercase: standard categories must be exact lowercase; alias "reverse" is accepted.
+        if raw != lowered:
+            invalid.append({"path": str(item), "reason": f"category directory must be lowercase '{canonical}/'"})
+            continue
+        result[canonical].append(item)
+    return result, invalid
 
 
 def _load_exp_names(exp_dir: Path | None, category: str) -> set[str]:
@@ -101,7 +109,7 @@ def _score_challenge(challenge_dir: Path, exp_names: set[str]) -> dict[str, Any]
 
 
 def build_plan(competition_dir: Path, exp_dir: Path | None) -> dict[str, Any]:
-    category_dirs = _find_category_dirs(competition_dir)
+    category_dirs, invalid_category_dirs = _find_category_dirs(competition_dir)
     categories = []
     dispatch_agents = []
 
@@ -156,7 +164,9 @@ def build_plan(competition_dir: Path, exp_dir: Path | None) -> dict[str, Any]:
             "dispatch_agent_count": len(dispatch_agents),
             "unsolved_count": sum(c["unsolved_count"] for c in categories),
             "skipped_solved_count": sum(c["skipped_count"] for c in categories),
+            "invalid_category_dir_count": len(invalid_category_dirs),
         },
+        "invalid_category_dirs": invalid_category_dirs,
         "categories": categories,
         "dispatch_agents": dispatch_agents,
     }
@@ -167,6 +177,9 @@ def print_human(plan: dict[str, Any]) -> None:
     for cat in plan["categories"]:
         marker = "✓" if cat["status"] == "dispatch" else "-"
         print(f"{marker} {cat['category']}: {cat['unsolved_count']} unsolved, {cat['skipped_count']} skipped ({cat['reason']})")
+    if plan.get("invalid_category_dirs"):
+        for item in plan["invalid_category_dirs"]:
+            print(f"! invalid category dir: {item['path']} ({item['reason']})")
     print(f"agents: {plan['summary']['dispatch_agent_count']}")
 
 

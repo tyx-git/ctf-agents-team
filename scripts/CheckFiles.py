@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -55,6 +56,15 @@ FORBIDDEN_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"bearer\s+[a-zA-Z0-9._-]{20,}", re.IGNORECASE),
 ]
 SENSITIVE_JSON_KEYS = {"token", "api_key", "api-key", "session", "authorization", "cookie", "password"}
+EXP_EXPECTED_BY_DIR = {
+    "web": {"Web"},
+    "pwn": {"Pwn"},
+    "re": {"Re", "Mobile"},
+    "misc": {"Misc"},
+    "crypto": {"Crypto"},
+    "forensics": {"Forensics"},
+}
+SPECULATIVE_TERMS = ("可能", "猜测", "未确认", "疑似", "也许", "maybe", "probably", "guess", "unconfirmed")
 
 # ── 结果收集器 ──────────────────────────────────────────────────────────
 
@@ -205,8 +215,12 @@ def check_directory_compliance(competition_dir: Path, report: Report) -> None:
             continue
         canon = CATEGORY_ALIASES.get(name.lower(), name.lower())
         if canon in VALID_CATEGORIES:
-            if name != canon:
-                report.error("目录合规", f"品类目录名非小写: {name}/（应为 {canon}/）", str(item))
+            if name != name.lower():
+                report.error("目录合规", f"品类目录名非小写: {name}/（应为小写目录名）", str(item))
+            elif name in CATEGORY_ALIASES:
+                report.ok("目录合规", f"品类别名目录有效: {name}/ → {canon}/", str(item))
+            elif name != canon:
+                report.error("目录合规", f"品类目录名不规范: {name}/（应为 {canon}/）", str(item))
             else:
                 report.ok("目录合规", f"品类目录名正确: {name}/", str(item))
 
@@ -291,9 +305,10 @@ def _iter_json_values(value: Any, path: str = ""):
 
 def _find_forbidden_json_content(value: Any) -> tuple[str, str] | None:
     for path, item in _iter_json_values(value):
-        key = path.rsplit(".", 1)[-1].split("[", 1)[0].lower()
-        if key in SENSITIVE_JSON_KEYS and item not in (None, ""):
-            return path, f"敏感字段: {key}"
+        path_keys = [seg.split("[", 1)[0].lower() for seg in path.split(".") if seg]
+        sensitive_key = next((key for key in path_keys if key in SENSITIVE_JSON_KEYS), None)
+        if sensitive_key and item not in (None, ""):
+            return path, f"敏感字段: {sensitive_key}"
         if not isinstance(item, (str, int, float)):
             continue
         text = str(item)
@@ -305,6 +320,23 @@ def _find_forbidden_json_content(value: Any) -> tuple[str, str] | None:
 
 
 # ── 经验库 schema 校验 ─────────────────────────────────────────────
+
+
+
+def _contains_speculative_terms(value: Any) -> tuple[str, str] | None:
+    for path, item in _iter_json_values(value):
+        # 题目名可能合法包含 maybe/guess 等单词，不作为经验结论质量判断。
+        if path == "name" or not isinstance(item, str):
+            continue
+        lower = item.lower()
+        for term in SPECULATIVE_TERMS:
+            term_lower = term.lower()
+            if term_lower.isascii():
+                if re.search(rf"\b{re.escape(term_lower)}\b", lower):
+                    return path, term
+            elif term_lower in lower:
+                return path, term
+    return None
 
 def check_exp_schema(exp_dir: Path, report: Report) -> None:
     """遍历 exp/*/*.jsonl 校验每行记录合法性。"""
@@ -337,15 +369,30 @@ def check_exp_schema(exp_dir: Path, report: Report) -> None:
                     report.error("经验库", f"{jsonl_file.name}:{i} 缺少必填字段: {missing}", "")
                     continue
 
-                # challenge 枚举
+                # challenge 枚举 + 所在目录一致性
                 ch = record.get("challenge", "")
                 if ch not in EXP_VALID_CHALLENGES:
                     report.error("经验库", f"{jsonl_file.name}:{i} challenge 无效: '{ch}'", "")
+                else:
+                    try:
+                        dir_name = jsonl_file.relative_to(exp_dir).parts[0]
+                    except ValueError:
+                        dir_name = jsonl_file.parent.name
+                    expected = EXP_EXPECTED_BY_DIR.get(dir_name)
+                    if expected is None:
+                        report.error("经验库", f"{jsonl_file.name}:{i} 位于未知经验目录: '{dir_name}'", "")
+                    elif ch not in expected:
+                        report.error("经验库", f"{jsonl_file.name}:{i} challenge '{ch}' 与目录 '{dir_name}/' 不匹配", f"允许: {sorted(expected)}")
 
-                # status 枚举
+                # status 枚举 + solved 禁止未验证推测
                 st = record.get("status", "")
                 if st not in EXP_VALID_STATUS:
                     report.error("经验库", f"{jsonl_file.name}:{i} status 无效: '{st}'", "")
+                elif st == "solved":
+                    speculative = _contains_speculative_terms(record)
+                    if speculative:
+                        path, term = speculative
+                        report.error("经验库", f"{jsonl_file.name}:{i} solved 条目包含未验证推测: {path}", f"命中: {term}")
 
                 # name 长度
                 name = record.get("name", "")
@@ -364,7 +411,7 @@ def check_exp_schema(exp_dir: Path, report: Report) -> None:
                 elif isinstance(exp_list, list):
                     for j, item in enumerate(exp_list):
                         if not isinstance(item, str) or not (15 <= len(item) <= 150):
-                            report.warn("经验库", f"{jsonl_file.name}:{i} experience[{j}] 长度不符 ({len(item)})", "")
+                            report.error("经验库", f"{jsonl_file.name}:{i} experience[{j}] 长度不符 ({len(item)})", "")
 
                 # failed_attempts 结构化校验
                 fa = record.get("failed_attempts")
@@ -516,49 +563,31 @@ def run_full_check(competition_dir: Path, exp_dir: Path | None, report: Report) 
 
 # ── 主入口 ─────────────────────────────────────────────────────────
 
-def _usage() -> None:
-    print(__doc__)
-
-
 def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-        _usage()
-        sys.exit(0)
+    parser = argparse.ArgumentParser(description="CTF Agents Team file and schema checker")
+    parser.add_argument("competition_dir", help="比赛目录路径")
+    parser.add_argument("--challenge", help="单题路径，格式为 分类/题目名")
+    parser.add_argument("--exp-dir", type=Path, help="经验库路径")
+    parser.add_argument("--json", action="store_true", help="输出 JSON")
+    args = parser.parse_args()
 
-    competition_dir = Path(sys.argv[1])
+    competition_dir = Path(args.competition_dir)
     if not competition_dir.is_dir():
         print(f"❌ 错误: 目录不存在: {competition_dir}", file=sys.stderr)
         sys.exit(1)
 
-    # 解析参数
-    challenge_rel: str | None = None
-    exp_dir: Path | None = None
-
-    if "--challenge" in sys.argv:
-        idx = sys.argv.index("--challenge")
-        if idx + 1 < len(sys.argv):
-            challenge_rel = sys.argv[idx + 1]
-
-    if "--exp-dir" in sys.argv:
-        idx = sys.argv.index("--exp-dir")
-        if idx + 1 < len(sys.argv):
-            exp_dir = Path(sys.argv[idx + 1])
-
     report = Report()
-
-    if challenge_rel:
-        run_challenge_check(challenge_rel, competition_dir, report)
+    if args.challenge:
+        run_challenge_check(args.challenge, competition_dir, report)
     else:
-        run_full_check(competition_dir, exp_dir, report)
+        run_full_check(competition_dir, args.exp_dir, report)
 
-    # ── 输出 ──
-    use_json = "--json" in sys.argv
-    if use_json:
+    if args.json:
         report.print_json(str(competition_dir))
     else:
         report.print_human(str(competition_dir))

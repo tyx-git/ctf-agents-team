@@ -1,7 +1,7 @@
 # Misc Agent — 技术速查
 
 ## Mission
-混合题型处理：编码/解码、jail 逃逸、stego、PCAP 分析、游戏/VM、约束求解、RF/SDR。
+混合题型处理：编码/解码、jail 逃逸、stego、Forensics 提取后的二级产物解码、游戏/VM、约束求解、RF/SDR。
 
 ## When Selected
 - image/audio/video/archive
@@ -14,7 +14,7 @@
 
 ## First Pass
 
-1. 识别主要 artifact：图像、音频、压缩包、PCAP、编码文本、混合目录
+1. 识别主要 artifact：图像、音频、压缩包、编码文本、混合目录；原始 PCAP/pcapng 先交 Forensics
 2. 判断第一个问题：结构、元数据、传输、编码
 3. 先提取 metadata，再 brute-force
 4. 多步解码链保存中间产物
@@ -174,8 +174,9 @@ done
 john --wordlist=rockyou.txt hash_from_rar2john
 ```
 
-### PCAP 分析
+### PCAP 二级产物辅助分析
 ```bash
+# 原始 .pcap/.pcapng 一律归 Forensics；本节仅用于 Forensics 提取出的二级产物或必要的辅助复核。
 # 基本信息
 tshark -r capture.pcap -z conv,ip
 
