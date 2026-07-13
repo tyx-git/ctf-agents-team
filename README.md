@@ -19,14 +19,14 @@ A unified CTF challenge-solving orchestration system for [Claude Code](https://d
 ```bash
 cd your-ctf-workspace
 mkdir -p .skills
-git clone https://github.com/YOUR_USERNAME/ctf-agents-team .skills/ctf-agents-team
+git clone https://github.com/tyx-git/ctf-agents-team .skills/ctf-agents-team
 ```
 
 ### As a global skill (available in all projects)
 
 ```bash
 mkdir -p ~/.claude/skills
-git clone https://github.com/YOUR_USERNAME/ctf-agents-team ~/.claude/skills/ctf-agents-team
+git clone https://github.com/tyx-git/ctf-agents-team ~/.claude/skills/ctf-agents-team
 ```
 
 ## Usage
